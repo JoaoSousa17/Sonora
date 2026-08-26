@@ -1,0 +1,41 @@
+{
+  "name": "ListeningHistory",
+  "type": "object",
+  "properties": {
+    "song_id": {
+      "type": "string"
+    },
+    "song_title": {
+      "type": "string"
+    },
+    "artist_name": {
+      "type": "string"
+    },
+    "cover_url": {
+      "type": "string"
+    },
+    "played_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "play_duration": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "song_id"
+  ],
+  "rls": {
+    "read": {
+      "created_by_id": "{{user.id}}"
+    },
+    "create": true,
+    "update": {
+      "created_by_id": "{{user.id}}"
+    },
+    "delete": {
+      "created_by_id": "{{user.id}}"
+    }
+  }
+}

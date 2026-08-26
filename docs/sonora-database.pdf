@@ -1,0 +1,976 @@
+%PDF-1.3
+%ºß¬à
+3 0 obj
+<</Type /Page
+/Parent 1 0 R
+/Resources 2 0 R
+/MediaBox [0 0 595.2799999999999727 841.8899999999999864]
+/Contents 4 0 R
+>>
+endobj
+4 0 obj
+<<
+/Length 7118
+>>
+stream
+0.200025 w
+0 G
+BT
+/F2 22 Tf
+25.2999999999999972 TL
+0.078 g
+48. 793.8899999999999864 Td
+(Sonora — Documentação da Base de Dados \(v2\)) Tj
+ET
+0.9 0.22 0.44 RG
+2. w
+48. 779.8899999999999864 m
+547.2799999999999727 779.8899999999999864 l
+S
+BT
+/F2 14 Tf
+16.0999999999999979 TL
+0.118 g
+48. 755.8899999999999864 Td
+(1. Visão Geral) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 734.8899999999999864 Td
+(A base de dados é fornecida pela plataforma Base44. Cada entidade é um schema JSON em) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 721.8899999999999864 Td
+(base44/entities/<Name>.jsonc que define propriedades e regras de Row-Level Security \(RLS\). Todos os registos) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 708.8899999999999864 Td
+(têm campos built-in: id \(string\), created_date \(ISO\), updated_date \(ISO\), created_by_id \(id do criador\),) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 695.8899999999999864 Td
+(created_by \(email do criador\). Não se declaram estes campos no schema. As operações são feitas via SDK: list,) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 682.8899999999999864 Td
+(filter, get, create, update, bulkCreate, bulkUpdate, updateMany, delete, deleteMany, schema, subscribe.) Tj
+ET
+BT
+/F2 14 Tf
+16.0999999999999979 TL
+0.118 g
+48. 661.8899999999999864 Td
+(2. Song \(catálogo\)) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 640.8899999999999864 Td
+(Propriedades: title \(string, required\), artist_id \(ref Artist, required\), artist_name \(string, denormalizado\), album_id) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 627.8899999999999864 Td
+(\(ref Album\), album_title \(string, denormalizado\), cover_url \(string\), duration_seconds \(number, default 0\),) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 614.8899999999999864 Td
+(audio_url \(string\), genre \(string\), play_count \(number, default 0\), track_number \(number, default 1\), release_year) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 601.8899999999999864 Td
+(\(number\). Sem RLS \(público a autenticados\). Usado em todo o lado: filas, recomendações, favoritos, histórico. A) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 588.8899999999999864 Td
+(denormalização \(artist_name, album_title, cover_url\) evita joins: cada Song já traz o necessário para renderizar) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 575.8899999999999864 Td
+(um SongRow sem queries extra.) Tj
+ET
+BT
+/F2 14 Tf
+16.0999999999999979 TL
+0.118 g
+48. 554.8899999999999864 Td
+(3. Album \(catálogo\)) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 533.8899999999999864 Td
+(Propriedades: title \(string, required\), artist_id \(ref Artist, required\), artist_name \(string\), cover_url \(string\),) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 520.8899999999999864 Td
+(release_year \(number\), genre \(string\), track_count \(number, default 0\). Sem RLS. AlbumDetail carrega) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 507.8899999999999864 Td
+(Album.get\(id\) + Song.filter\({album_id: id}, 'track_number', 100\) + Playlist.list \(para as tags de playlist\).) Tj
+ET
+BT
+/F2 14 Tf
+16.0999999999999979 TL
+0.118 g
+48. 486.8899999999999864 Td
+(4. Artist \(catálogo\)) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 465.8899999999999864 Td
+(Propriedades: name \(string, required\), bio \(string\), image_url \(string\), header_image_url \(string\), genres \(array de) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 452.8899999999999864 Td
+(strings\), monthly_listeners \(number, default 0\). Sem RLS. ArtistDetail mostra bio, capa \(header_image_url\),) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 439.8899999999999864 Td
+(géneros, álbuns \(Album.filter\({artist_id}\)\) e músicas \(Song.filter\({artist_id}\)\). playArtistShuffle usa) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 426.8899999999999864 Td
+(getArtistShuffleQueue\(artist_id\).) Tj
+ET
+BT
+/F2 14 Tf
+16.0999999999999979 TL
+0.118 g
+48. 405.8899999999999864 Td
+(5. Podcast e PodcastEpisode \(catálogo\)) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 384.8899999999999864 Td
+(Podcast: title \(required\), author \(required\), cover_url, description, category. Sem RLS. PodcastEpisode: title) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 371.8899999999999864 Td
+(\(required\), podcast_id \(ref Podcast, required\), podcast_title, duration_seconds, audio_url, description,) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 358.8899999999999864 Td
+(publish_date \(date\), cover_url. Sem RLS. A página Podcasts integra com a iTunes Search API para descobrir) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 345.8899999999999864 Td
+(novos podcasts e subscreve \(cria Podcast + episódios\) na base de dados local.) Tj
+ET
+BT
+/F2 14 Tf
+16.0999999999999979 TL
+0.118 g
+48. 324.8899999999999864 Td
+(6. Playlist) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 303.8899999999999864 Td
+(Propriedades: title \(string, required\), description \(string\), cover_url \(string\), song_ids \(array de strings = ids de) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 290.8899999999999864 Td
+(Song\), is_liked \(bool, default false\), is_public \(bool, default true\), track_count \(number, default 0\). RLS: read = {) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 277.8899999999999864 Td
+($or: [ { data.is_public: true }, { created_by_id: {{user.id}} } ] } — públicas visíveis a todos, privadas só ao dono.) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 264.8899999999999864 Td
+(create: true. update/delete: { created_by_id: {{user.id}} } — só o dono edita/remove. O track_count é mantido) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 251.8899999999999864 Td
+(sincronizado manualmente nos writes \(AddToPlaylistDialog, PlaylistDetail\). A sidebar subscreve alterações) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 238.8899999999999864 Td
+(\(realtime\) para refletir criações/edições.) Tj
+ET
+BT
+/F2 14 Tf
+16.0999999999999979 TL
+0.118 g
+48. 217.8899999999999864 Td
+(7. Favorite \(pessoal\)) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 196.8899999999999864 Td
+(Propriedades: song_id \(string, required\), song_title, artist_name, cover_url, added_at \(date-time\). RLS:) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 183.8899999999999864 Td
+(read/update/delete = { created_by_id: {{user.id}} } — cada utilizador só vê e gere os seus. create: true. Usado) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 170.8899999999999864 Td
+(para a secção Favoritos da biblioteca e para o botão coração nas músicas \(SongRow.handleLove cria/apaga por) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 157.8899999999999864 Td
+(song_id via deleteMany\({song_id}\)\).) Tj
+ET
+BT
+/F2 14 Tf
+16.0999999999999979 TL
+0.118 g
+48. 136.8899999999999864 Td
+(8. ListeningHistory \(pessoal\)) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 115.8899999999999864 Td
+(Propriedades: song_id \(required\), song_title, artist_name, cover_url, played_at \(date-time\), play_duration) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 102.8899999999999864 Td
+(\(number, default 0\). RLS: read/update/delete = { created_by_id: {{user.id}} } — só o dono vê o seu histórico. O) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 89.8899999999999864 Td
+(PlayerContext cria um registo por reprodução \(no efeito de mudança de música\). Usado para 'Recentes' na) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 76.8899999999999864 Td
+(biblioteca e para a página Estatísticas \(top artistas/géneros/músicas por contagem\).) Tj
+ET
+endstream
+endobj
+5 0 obj
+<</Type /Page
+/Parent 1 0 R
+/Resources 2 0 R
+/MediaBox [0 0 595.2799999999999727 841.8899999999999864]
+/Contents 6 0 R
+>>
+endobj
+6 0 obj
+<<
+/Length 8092
+>>
+stream
+2. w
+0.9 0.22 0.44 RG
+BT
+/F2 14 Tf
+16.0999999999999979 TL
+0.118 g
+48. 793.8899999999999864 Td
+(9. Friendship \(social — convites e amizades\)) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 772.8899999999999864 Td
+(Propriedades: addressee_email \(string, required\), addressee_id \(string, ref User\), status \(enum) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 759.8899999999999864 Td
+(pending|accepted|declined, default pending, required\). RLS read/update/delete = { $or: [ { created_by_id:) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 746.8899999999999864 Td
+({{user.id}} }, { data.addressee_email: {{user.email}} }, { data.addressee_id: {{user.id}} } ] } — ambas as partes) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 733.8899999999999864 Td
+(veem e gerem. create: true. Um convite pending torna-se accepted quando o destinatário faz update com) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 720.8899999999999864 Td
+(addressee_id = o seu id. A lista de amigos obtém-se filtrando status='accepted' e determinando o 'amigo' = a) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 707.8899999999999864 Td
+( o u t r a   p a r t e   \( s e   c r e a t e d _ b y _ i d = = m e  !’   a d d r e s s e e _ i d ,   s e n ã o   c r e a t e d _ b y _ i d \) .   P a r a   t e s t e s ,   u s o u - s e) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 694.8899999999999864 Td
+(base44.asServiceRole.entities.Friendship.create para definir created_by_id diferente do utilizador atual) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 681.8899999999999864 Td
+(\(simulando um convite recebido\).) Tj
+ET
+BT
+/F2 14 Tf
+16.0999999999999979 TL
+0.118 g
+48. 660.8899999999999864 Td
+(10. FriendActivity \(social — atividade de escuta\)) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 639.8899999999999864 Td
+(Propriedades: song_id, song_title \(required\), artist_name, cover_url, is_playing \(bool, default true\). RLS: read = {}) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 626.8899999999999864 Td
+(\(aberto a todos os autenticados — para os amigos verem\); create/update/delete = { created_by_id: {{user.id}} }) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 613.8899999999999864 Td
+(— só o dono escreve. O PlayerContext cria um registo por reprodução \(se share_activity != false\) e atualiza) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 600.8899999999999864 Td
+(is_playing em pause/play. Mantém-se máximo 20 por utilizador: após criar, busca os 30 mais recentes e apaga) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 587.8899999999999864 Td
+(os excedentes com deleteMany\({ id: { $in: ids } }\). A página Amigos mostra o registo mais recente por amigo) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 574.8899999999999864 Td
+(\(agrupar por created_by_id, sort -created_date\).) Tj
+ET
+BT
+/F2 14 Tf
+16.0999999999999979 TL
+0.118 g
+48. 553.8899999999999864 Td
+(11. Profile \(social — perfil público\)) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 532.8899999999999864 Td
+(Propriedades: display_name \(string, required\), photo_url, cover_photo_url, bio. RLS: read = {} \(público a) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 519.8899999999999864 Td
+(autenticados\); create/update/delete = { created_by_id: {{user.id}} }. Cada utilizador tem um registo Profile,) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 506.8899999999999864 Td
+(sincronizado a partir do ProfileModal \(que também faz updateMe no User\). Permite que amigos vejam) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 493.8899999999999864 Td
+(nome/foto/capa/bio sem precisar de listar Users \(o User built-in só é listável por admins\).) Tj
+ET
+BT
+/F2 14 Tf
+16.0999999999999979 TL
+0.118 g
+48. 472.8899999999999864 Td
+(12. User \(built-in\)) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 451.8899999999999864 Td
+(Gerido pela plataforma. Campos: id, created_date, full_name, email, role \(admin|user\). Campos custom) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 438.8899999999999864 Td
+(adicionados via updateMe: bio, cover_photo_url, share_activity \(bool, default true — toggle de privacidade da) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 425.8899999999999864 Td
+(atividade\). Não se podem criar/importar registos User \(create retorna 405\); os utilizadores entram por convite) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 412.8899999999999864 Td
+(\(base44.users.inviteUser\(email, role\)\). Só admins listam/editam/apagam outros utilizadores. Não se adiciona) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 399.8899999999999864 Td
+(RLS ao User \(a plataforma gere as permissões\).) Tj
+ET
+BT
+/F2 14 Tf
+16.0999999999999979 TL
+0.118 g
+48. 378.8899999999999864 Td
+(13. Relacionamentos \(refs lógicos\)) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 357.8899999999999864 Td
+( S o n g . a r t i s t _ i d  !’   A r t i s t . i d ;   S o n g . a l b u m _ i d  !’   A l b u m . i d ;   A l b u m . a r t i s t _ i d  !’   A r t i s t . i d ;   P o d c a s t E p i s o d e . p o d c a s t _ i d  !’) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 344.8899999999999864 Td
+( P o d c a s t . i d ;   P l a y l i s t . s o n g _ i d s [ ]  !’   S o n g . i d [ ] ;   F a v o r i t e . s o n g _ i d  !’   S o n g . i d ;   L i s t e n i n g H i s t o r y . s o n g _ i d  !’   S o n g . i d ;) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 331.8899999999999864 Td
+( F r i e n d s h i p . a d d r e s s e e _ i d  !’   U s e r . i d ;   F r i e n d A c t i v i t y . s o n g _ i d  !’   S o n g . i d ;   P r o f i l e . c r e a t e d _ b y _ i d  !’   U s e r . i d .   N ã o   h á) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 318.8899999999999864 Td
+(foreign keys enforçadas — a integridade é gerida pela aplicação. Denormaliza-se frequentemente \(artist_name,) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 305.8899999999999864 Td
+(album_title, cover_url\) para evitar joins e tornar os SongRows autossuficientes.) Tj
+ET
+BT
+/F2 14 Tf
+16.0999999999999979 TL
+0.118 g
+48. 284.8899999999999864 Td
+(14. Populate / Seed) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 263.8899999999999864 Td
+(Os dados de catálogo \(Song, Album, Artist, Podcast, PodcastEpisode\) são populados via create_entity_records) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 250.8899999999999864 Td
+(ou import_data \(CSV/Excel/JSON\). Exemplo: create_entity_records\('Song', [{title, artist_id, artist_name,) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 237.8899999999999864 Td
+(audio_url, cover_url, duration_seconds, track_number, genre, play_count}]\). Para Friendship de teste, usou-se) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 224.8899999999999864 Td
+(base44.asServiceRole.entities.Friendship.create para definir created_by_id diferente do utilizador atual. Os) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 211.8899999999999864 Td
+(utilizadores não se populam — entram por convite. O cache de músicas \(songsCache em recommendations.js\)) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 198.8899999999999864 Td
+(deve ser limpo \(clearSongsCache\) após popular novas músicas para que as recomendações as incluam.) Tj
+ET
+BT
+/F2 14 Tf
+16.0999999999999979 TL
+0.118 g
+48. 177.8899999999999864 Td
+(15. Consultas Típicas \(SDK\)) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 156.8899999999999864 Td
+(list\(sort, limit\): Playlist.list\('-updated_date', 100\). filter\(query, sort, limit\): Song.filter\({album_id: id}, 'track_number',) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 143.8899999999999864 Td
+(100\); FriendActivity.filter\({created_by_id: id}, '-created_date', 5\); Friendship.filter\({status:'accepted'}\). get\(id\):) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 130.8899999999999864 Td
+(Album.get\(id\). create\(data\): Playlist.create\({...}\). update\(id, data\): Playlist.update\(id, {song_ids, track_count}\).) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 117.8899999999999864 Td
+(bulkCreate\([]\), bulkUpdate\([]\). updateMany\(query, {$set:...}\) — mesmo change a todos os matches \(até 500; o) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 104.8899999999999864 Td
+($set deve mudar um campo do query para não re-match infinito\). deleteMany\(query\):) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 91.8899999999999864 Td
+(Friendship.deleteMany\({status:'declined'}\) — cuidado com queries largas. subscribe\(cb\): realtime. schema\(\):) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 78.8899999999999864 Td
+(JSON schema para formulários.) Tj
+ET
+endstream
+endobj
+7 0 obj
+<</Type /Page
+/Parent 1 0 R
+/Resources 2 0 R
+/MediaBox [0 0 595.2799999999999727 841.8899999999999864]
+/Contents 8 0 R
+>>
+endobj
+8 0 obj
+<<
+/Length 1121
+>>
+stream
+2. w
+0.9 0.22 0.44 RG
+BT
+/F2 14 Tf
+16.0999999999999979 TL
+0.118 g
+48. 793.8899999999999864 Td
+(16. Segurança e Notas) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 772.8899999999999864 Td
+(RLS é aplicada no servidor em cada pedido de app-user. Operações sem regra ficam abertas — por isso dados) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 759.8899999999999864 Td
+(pessoais têm read/update/delete restritos a created_by_id. Writes usam formas compactas \(equality, $in,) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 746.8899999999999864 Td
+($or/$and\). O created_by_id é o anchor mais fiável \(sempre presente\). Para FriendActivity/Profile o read é aberto) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 733.8899999999999864 Td
+(intencionalmente \(partilha social\), mas os writes são só do dono. Não há triggers de DB custom; a lógica de) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 720.8899999999999864 Td
+(limpeza \(máx 20 FriendActivity\) e de escrita de histórico vive no PlayerContext \(cliente\). O deleteMany deve ter) Tj
+ET
+BT
+/F1 10 Tf
+11.5 TL
+0.196 g
+48. 707.8899999999999864 Td
+(queries específicas para evitar apagar dados alheios.) Tj
+ET
+endstream
+endobj
+1 0 obj
+<</Type /Pages
+/Kids [3 0 R 5 0 R 7 0 R ]
+/Count 3
+>>
+endobj
+9 0 obj
+<<
+/Type /Font
+/BaseFont /Helvetica
+/Subtype /Type1
+/Encoding /WinAnsiEncoding
+/FirstChar 32
+/LastChar 255
+>>
+endobj
+10 0 obj
+<<
+/Type /Font
+/BaseFont /Helvetica-Bold
+/Subtype /Type1
+/Encoding /WinAnsiEncoding
+/FirstChar 32
+/LastChar 255
+>>
+endobj
+11 0 obj
+<<
+/Type /Font
+/BaseFont /Helvetica-Oblique
+/Subtype /Type1
+/Encoding /WinAnsiEncoding
+/FirstChar 32
+/LastChar 255
+>>
+endobj
+12 0 obj
+<<
+/Type /Font
+/BaseFont /Helvetica-BoldOblique
+/Subtype /Type1
+/Encoding /WinAnsiEncoding
+/FirstChar 32
+/LastChar 255
+>>
+endobj
+13 0 obj
+<<
+/Type /Font
+/BaseFont /Courier
+/Subtype /Type1
+/Encoding /WinAnsiEncoding
+/FirstChar 32
+/LastChar 255
+>>
+endobj
+14 0 obj
+<<
+/Type /Font
+/BaseFont /Courier-Bold
+/Subtype /Type1
+/Encoding /WinAnsiEncoding
+/FirstChar 32
+/LastChar 255
+>>
+endobj
+15 0 obj
+<<
+/Type /Font
+/BaseFont /Courier-Oblique
+/Subtype /Type1
+/Encoding /WinAnsiEncoding
+/FirstChar 32
+/LastChar 255
+>>
+endobj
+16 0 obj
+<<
+/Type /Font
+/BaseFont /Courier-BoldOblique
+/Subtype /Type1
+/Encoding /WinAnsiEncoding
+/FirstChar 32
+/LastChar 255
+>>
+endobj
+17 0 obj
+<<
+/Type /Font
+/BaseFont /Times-Roman
+/Subtype /Type1
+/Encoding /WinAnsiEncoding
+/FirstChar 32
+/LastChar 255
+>>
+endobj
+18 0 obj
+<<
+/Type /Font
+/BaseFont /Times-Bold
+/Subtype /Type1
+/Encoding /WinAnsiEncoding
+/FirstChar 32
+/LastChar 255
+>>
+endobj
+19 0 obj
+<<
+/Type /Font
+/BaseFont /Times-Italic
+/Subtype /Type1
+/Encoding /WinAnsiEncoding
+/FirstChar 32
+/LastChar 255
+>>
+endobj
+20 0 obj
+<<
+/Type /Font
+/BaseFont /Times-BoldItalic
+/Subtype /Type1
+/Encoding /WinAnsiEncoding
+/FirstChar 32
+/LastChar 255
+>>
+endobj
+21 0 obj
+<<
+/Type /Font
+/BaseFont /ZapfDingbats
+/Subtype /Type1
+/FirstChar 32
+/LastChar 255
+>>
+endobj
+22 0 obj
+<<
+/Type /Font
+/BaseFont /Symbol
+/Subtype /Type1
+/FirstChar 32
+/LastChar 255
+>>
+endobj
+2 0 obj
+<<
+/ProcSet [/PDF /Text /ImageB /ImageC /ImageI]
+/Font <<
+/F1 9 0 R
+/F2 10 0 R
+/F3 11 0 R
+/F4 12 0 R
+/F5 13 0 R
+/F6 14 0 R
+/F7 15 0 R
+/F8 16 0 R
+/F9 17 0 R
+/F10 18 0 R
+/F11 19 0 R
+/F12 20 0 R
+/F13 21 0 R
+/F14 22 0 R
+>>
+/XObject <<
+>>
+>>
+endobj
+23 0 obj
+<<
+/Producer (jsPDF 4.2.1)
+/CreationDate (D:20260826022131+01'00')
+>>
+endobj
+24 0 obj
+<<
+/Type /Catalog
+/Pages 1 0 R
+/OpenAction [3 0 R /FitH null]
+/PageLayout /OneColumn
+>>
+endobj
+xref
+0 25
+0000000000 65535 f 
+0000016913 00000 n 
+0000018746 00000 n 
+0000000015 00000 n 
+0000000152 00000 n 
+0000007322 00000 n 
+0000007459 00000 n 
+0000015603 00000 n 
+0000015740 00000 n 
+0000016982 00000 n 
+0000017107 00000 n 
+0000017238 00000 n 
+0000017372 00000 n 
+0000017510 00000 n 
+0000017634 00000 n 
+0000017763 00000 n 
+0000017895 00000 n 
+0000018031 00000 n 
+0000018159 00000 n 
+0000018286 00000 n 
+0000018415 00000 n 
+0000018548 00000 n 
+0000018650 00000 n 
+0000018998 00000 n 
+0000019084 00000 n 
+trailer
+<<
+/Size 25
+/Root 24 0 R
+/Info 23 0 R
+/ID [ <CD3D1F213620352B53A48095E37132F4> <CD3D1F213620352B53A48095E37132F4> ]
+>>
+startxref
+19188
+%%EOF

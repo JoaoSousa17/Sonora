@@ -1,0 +1,68 @@
+{
+  "name": "Friendship",
+  "type": "object",
+  "properties": {
+    "addressee_email": {
+      "type": "string"
+    },
+    "addressee_id": {
+      "type": "string",
+      "description": "ref User"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "accepted",
+        "declined"
+      ],
+      "default": "pending"
+    }
+  },
+  "required": [
+    "addressee_email",
+    "status"
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "data.addressee_email": "{{user.email}}"
+        },
+        {
+          "data.addressee_id": "{{user.id}}"
+        }
+      ]
+    },
+    "create": true,
+    "update": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "data.addressee_email": "{{user.email}}"
+        },
+        {
+          "data.addressee_id": "{{user.id}}"
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "data.addressee_email": "{{user.email}}"
+        },
+        {
+          "data.addressee_id": "{{user.id}}"
+        }
+      ]
+    }
+  }
+}

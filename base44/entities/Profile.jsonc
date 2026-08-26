@@ -1,0 +1,33 @@
+{
+  "name": "Profile",
+  "type": "object",
+  "properties": {
+    "display_name": {
+      "type": "string"
+    },
+    "photo_url": {
+      "type": "string"
+    },
+    "cover_photo_url": {
+      "type": "string"
+    },
+    "bio": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "display_name"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "created_by_id": "{{user.id}}"
+    },
+    "delete": {
+      "created_by_id": "{{user.id}}"
+    }
+  }
+}

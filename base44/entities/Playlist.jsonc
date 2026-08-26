@@ -1,0 +1,55 @@
+{
+  "name": "Playlist",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "cover_url": {
+      "type": "string"
+    },
+    "song_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "is_liked": {
+      "type": "boolean",
+      "default": false
+    },
+    "is_public": {
+      "type": "boolean",
+      "default": true
+    },
+    "track_count": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "title"
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "data.is_public": true
+        },
+        {
+          "created_by_id": "{{user.id}}"
+        }
+      ]
+    },
+    "create": true,
+    "update": {
+      "created_by_id": "{{user.id}}"
+    },
+    "delete": {
+      "created_by_id": "{{user.id}}"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "Podcast",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "author": {
+      "type": "string"
+    },
+    "cover_url": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "title",
+    "author"
+  ]
+}

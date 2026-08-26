@@ -1,0 +1,51 @@
+{
+  "name": "Song",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "artist_id": {
+      "type": "string",
+      "description": "ref Artist"
+    },
+    "artist_name": {
+      "type": "string"
+    },
+    "album_id": {
+      "type": "string",
+      "description": "ref Album"
+    },
+    "album_title": {
+      "type": "string"
+    },
+    "cover_url": {
+      "type": "string"
+    },
+    "duration_seconds": {
+      "type": "number",
+      "default": 0
+    },
+    "audio_url": {
+      "type": "string"
+    },
+    "genre": {
+      "type": "string"
+    },
+    "play_count": {
+      "type": "number",
+      "default": 0
+    },
+    "track_number": {
+      "type": "number",
+      "default": 1
+    },
+    "release_year": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "title",
+    "artist_id"
+  ]
+}

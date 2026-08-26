@@ -1,0 +1,31 @@
+{
+  "name": "Artist",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "bio": {
+      "type": "string"
+    },
+    "image_url": {
+      "type": "string"
+    },
+    "header_image_url": {
+      "type": "string"
+    },
+    "genres": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "monthly_listeners": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

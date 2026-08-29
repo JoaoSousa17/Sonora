@@ -17,7 +17,6 @@ import AlbumDetail from '@/pages/AlbumDetail';
 import Podcasts from '@/pages/Podcasts';
 import Statistics from '@/pages/Statistics';
 import Amigos from '@/pages/Amigos';
-import SecretBar from '@/pages/SecretBar';
 import Radio from '@/pages/Radio';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
@@ -72,7 +71,6 @@ const AuthenticatedApp = () => {
             <Route path="/podcasts/:id" element={<Podcasts />} />
             <Route path="/estatisticas" element={<Statistics />} />
             <Route path="/amigos" element={<Amigos />} />
-            <Route path="/secret-bar" element={<SecretBar />} />
           </Route>
         </Route>
       </Route>

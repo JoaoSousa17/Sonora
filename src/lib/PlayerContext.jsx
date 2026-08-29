@@ -1,10 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
 import { useAuth } from "@/lib/AuthContext";
-import { getRecommendations, getArtistShuffleQueue } from "@/lib/recommendations";
+import { getRecommendations, getArtistShuffleQueue, smartShuffle } from "@/lib/recommendations";
 
 const PlayerContext = createContext(null);
 
+// Equal-power fade: volume follows a sine/cosine curve instead of a straight
+// line, so perceived loudness (which is roughly proportional to power, i.e.
+// volume²) changes at a constant rate. A linear fade dips noticeably in the
+// middle because ear-perceived loudness isn't linear with amplitude — this
+// keeps DJ-mode transitions sounding smooth instead of momentarily quiet.
 function fadeAudio(audio, to, duration) {
   if (!audio) return;
   const start = performance.now();
@@ -12,7 +17,8 @@ function fadeAudio(audio, to, duration) {
   const step = (now) => {
     if (!audio) return;
     const t = Math.min(1, (now - start) / duration);
-    audio.volume = fromVol + (to - fromVol) * t;
+    const curve = Math.sin(t * (Math.PI / 2)); // 0 -> 1 ease matching equal-power taper
+    audio.volume = fromVol + (to - fromVol) * curve;
     if (t < 1) requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
@@ -259,12 +265,8 @@ export function PlayerProvider({ children }) {
     setShuffle((sh) => {
       const nextSh = !sh;
       if (nextSh && queue.length > 1) {
-        const remaining = queue.filter((_, i) => i !== currentIndex);
-        for (let i = remaining.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [remaining[i], remaining[j]] = [remaining[j], remaining[i]];
-        }
         const current = queue[currentIndex];
+        const remaining = smartShuffle(queue.filter((_, i) => i !== currentIndex));
         setQueue([current, ...remaining]);
         setCurrentIndex(0);
       }

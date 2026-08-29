@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { base44 } from "@/api/base44Client";
-import { Music2, Mic2 } from "lucide-react";
+import { Music2 } from "lucide-react";
 
 export default function LyricsPanel({ song, currentTime = 0, duration = 0, karaoke = false }) {
   const [lyrics, setLyrics] = useState(null);
@@ -13,9 +13,8 @@ export default function LyricsPanel({ song, currentTime = 0, duration = 0, karao
     setLoading(true);
     setLyrics(null);
     base44.integrations.Core.InvokeLLM({
-      prompt: `Devolve a letra completa da música "${song.title}" de ${song.artist_name}. Se não souberes a letra exata, escreve um pequeno texto sobre a música e o seu significado. Responde apenas com o texto, em português, sem introduções nem comentários.`,
-      add_context_from_internet: true,
-      model: "gemini_3_flash",
+      songTitle: song.title,
+      artistName: song.artist_name,
     })
       .then((res) => {
         if (cancelled) return;

@@ -9,7 +9,7 @@ import { Image } from "@/components/ui/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { shuffleArray, getRecommendations } from "@/lib/recommendations";
+import { smartShuffle, getPlaylistSuggestions } from "@/lib/recommendations";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { toast } from "@/components/ui/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -57,7 +57,7 @@ export default function PlaylistDetail() {
 
   useEffect(() => {
     if (!playlist || songs.length === 0) { setSuggested([]); return; }
-    getRecommendations({ seed_type: "song", seed_id: songs[0].id, exclude_ids: songs.map((s) => s.id), limit: 6 })
+    getPlaylistSuggestions({ songs, exclude_ids: songs.map((s) => s.id), limit: 6 })
       .then(setSuggested).catch(() => setSuggested([]));
   }, [playlist?.id, songs.length]);
 
@@ -175,7 +175,7 @@ export default function PlaylistDetail() {
         <Button onClick={() => isThisQueue ? togglePlay() : playQueue(songs, 0)} className="w-14 h-14 rounded-full am-gradient hover:opacity-90 p-0 shadow-lg shadow-primary/30">
           <Play className="w-6 h-6 fill-white text-white" />
         </Button>
-        <button onClick={() => playQueue(shuffleArray(songs), 0)} className="text-muted-foreground hover:text-foreground" title="Shuffle"><Shuffle className="w-6 h-6" /></button>
+        <button onClick={() => playQueue(smartShuffle(songs), 0)} className="text-muted-foreground hover:text-foreground" title="Shuffle"><Shuffle className="w-6 h-6" /></button>
         <button onClick={share} className="text-muted-foreground hover:text-foreground" title="Partilhar"><Share2 className="w-5 h-5" /></button>
         <button onClick={onEditClick} className={`${editMode ? "text-primary" : "text-muted-foreground hover:text-foreground"}`} title="Editar"><Pencil className="w-5 h-5" /></button>
         {editMode && <Button size="sm" onClick={saveMeta} disabled={saving} className="ml-auto"><Check className="w-4 h-4 mr-1" /> {saving ? "A guardar..." : "Guardar"}</Button>}

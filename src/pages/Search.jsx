@@ -207,12 +207,7 @@ export default function Search() {
                 </div>
               </section>
             )}
-            {q.trim().toLowerCase() === "secret" && (
-              <div className="flex justify-center py-10">
-                <Link to="/secret-bar" className="px-6 py-4 rounded-xl am-gradient text-white font-bold shadow-lg shadow-primary/30">Barra Secret</Link>
-              </div>
-            )}
-            {q.trim().toLowerCase() !== "secret" && results.songs.length === 0 && results.artists.length === 0 && results.albums.length === 0 && results.playlists.length === 0 && (
+            {results.songs.length === 0 && results.artists.length === 0 && results.albums.length === 0 && results.playlists.length === 0 && (
               <p className="text-muted-foreground text-center py-20">Sem resultados para "{q}"</p>
             )}
           </div>

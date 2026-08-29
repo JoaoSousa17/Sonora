@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
+import { fetchPodcastFeed } from "@/api/podcastFeed";
 import { Play, Mic2, Compass, Search, Plus, Check } from "lucide-react";
 import { usePlayer } from "@/lib/PlayerContext";
 import { Image } from "@/components/ui/image";
@@ -66,14 +67,39 @@ export default function Podcasts() {
   const addPodcast = async (r) => {
     setAdding(r.trackId);
     try {
-      await base44.entities.Podcast.create({
+      const podcast = await base44.entities.Podcast.create({
         title: r.trackName,
         author: r.artistName || "Desconhecido",
         cover_url: r.artworkUrl600 || r.artworkUrl100 || "",
         description: r.primaryGenreName || "",
         category: r.primaryGenreName || "",
       });
-      toast({ title: "Podcast adicionado", description: r.trackName });
+
+      let episodeCount = 0;
+      if (r.feedUrl) {
+        try {
+          const { episodes } = await fetchPodcastFeed(r.feedUrl);
+          if (episodes?.length) {
+            await base44.entities.PodcastEpisode.bulkCreate(
+              episodes.map((ep) => ({
+                ...ep,
+                podcast_id: podcast.id,
+                podcast_title: podcast.title,
+                cover_url: ep.cover_url || podcast.cover_url,
+              }))
+            );
+            episodeCount = episodes.length;
+          }
+        } catch {
+          toast({ title: "Podcast adicionado", description: "Não foi possível carregar os episódios agora.", variant: "destructive" });
+        }
+      }
+
+      if (episodeCount > 0) {
+        toast({ title: "Podcast adicionado", description: `${r.trackName} · ${episodeCount} episódios` });
+      } else if (!r.feedUrl) {
+        toast({ title: "Podcast adicionado", description: r.trackName });
+      }
       loadPodcasts();
     } catch {
       toast({ title: "Erro ao adicionar", variant: "destructive" });

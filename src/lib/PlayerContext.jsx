@@ -109,14 +109,17 @@ export function PlayerProvider({ children }) {
           audio.src = fullUrl;
           normalizedTrack.audio_url = fullUrl;
           audio.currentTime = 0;
+          audio.load();
+          
           await audio.play();
+          setIsPlaying(true);
         } else {
-          console.error("Não foi possível encontrar a stream completa nos nós ativos.");
+          console.error("Não foi possível resolver o stream.");
         }
         setIsLoadingStream(false);
       }
     } catch (err) {
-      console.error('Falha ao iniciar reprodução:', err);
+      console.error('Erro no playback:', err);
       setIsLoadingStream(false);
     }
   }, []);

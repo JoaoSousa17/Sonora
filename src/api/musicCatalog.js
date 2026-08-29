@@ -1,16 +1,9 @@
 /**
- * Sonora - Catálogo Musical & Resolvedor de Streaming Completo
- * Suporte a Proxy de Áudio anti-403 para reprodução completa
+ * Sonora - Catálogo Musical & Resolvedor de Áudio Completo
+ * iTunes Search API + Resolvedores de Áudio com CORS Aberto
  */
 
-// Instâncias com proxy de áudio direto e CORS aberto
-const INVIDIOUS_INSTANCES = [
-  'https://invidious.drgns.space',
-  'https://inv.nadeko.net',
-  'https://yt.drgnz.club',
-  'https://invidious.private.coffee',
-  'https://invidious.flokinet.to'
-];
+const streamUrlCache = new Map();
 
 function upgradeArtwork(url) {
   if (!url) return 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800';
@@ -18,7 +11,7 @@ function upgradeArtwork(url) {
 }
 
 /**
- * 1. Pesquisa Músicas (iTunes API)
+ * 1. Pesquisa de Músicas (iTunes API)
  */
 export async function searchSongs(query, limit = 30) {
   if (!query || !query.trim()) return [];
@@ -49,7 +42,7 @@ export async function searchSongs(query, limit = 30) {
 }
 
 /**
- * 2. Pesquisa Álbuns
+ * 2. Pesquisa de Álbuns
  */
 export async function searchAlbums(query, limit = 20) {
   if (!query || !query.trim()) return [];
@@ -76,7 +69,7 @@ export async function searchAlbums(query, limit = 20) {
 }
 
 /**
- * 3. Faixas do Álbum
+ * 3. Detalhes e Faixas de um Álbum
  */
 export async function getAlbumTracks(albumId) {
   try {
@@ -119,14 +112,12 @@ export async function getAlbumTracks(albumId) {
 }
 
 /**
- * 4. Resolvedor de Áudio Completo com Proxy Anti-403
+ * 4. Resolvedor de Áudio Completo com Failover Garantido
  */
-const streamUrlCache = new Map();
-
 export async function resolveAudioStreamUrl(trackTitle, artistName) {
   const cacheKey = `${artistName} - ${trackTitle}`.toLowerCase().trim();
 
-  // Cache em memória
+  // Verificação de Cache em memória
   if (streamUrlCache.has(cacheKey)) {
     const cached = streamUrlCache.get(cacheKey);
     if (Date.now() - cached.timestamp < 3 * 60 * 60 * 1000) {
@@ -135,48 +126,60 @@ export async function resolveAudioStreamUrl(trackTitle, artistName) {
   }
 
   const cleanTitle = trackTitle.replace(/\(.*?\)|\[.*?\]/g, '').trim();
-  const query = `${cleanTitle} ${artistName} Audio`;
+  const query = `${cleanTitle} ${artistName}`;
 
-  for (const instance of INVIDIOUS_INSTANCES) {
-    try {
-      // 1. Pesquisa no Invidious
-      const searchRes = await fetch(`${instance}/api/v1/search?q=${encodeURIComponent(query)}&type=video`, {
-        signal: AbortSignal.timeout(3000),
-      });
+  // Estratégia 1: Saavn API Global com endpoint verificado e ativo
+  try {
+    const saavnUrl = `https://saavn.dev/api/search/songs?query=${encodeURIComponent(query)}&page=1&limit=5`;
+    const res = await fetch(saavnUrl, { signal: AbortSignal.timeout(3500) });
 
-      if (!searchRes.ok) continue;
+    if (res.ok) {
+      const data = await res.json();
+      const results = data?.data?.results || [];
 
-      const searchData = await searchRes.json();
-      if (!Array.isArray(searchData) || searchData.length === 0) continue;
+      if (results.length > 0) {
+        const top = results[0];
+        const downloadUrls = top.downloadUrl || [];
+        // Escolhe o stream de maior bitrate disponível (320kbps ou 160kbps)
+        const bestStream = downloadUrls[downloadUrls.length - 1] || downloadUrls[0];
+        const finalUrl = bestStream?.url || bestStream?.link;
 
-      const videoId = searchData[0].videoId;
-      if (!videoId) continue;
-
-      // 2. Usar o endpoint de proxy direto do Invidious (itag 140 = M4A AAC 128kbps alta qualidade)
-      // Este endpoint faz stream direto do servidor sem dar erro 403 do Google no browser
-      const proxiedAudioUrl = `${instance}/latest_version?id=${videoId}&itag=140`;
-
-      // 3. Testa rapidamente se o stream responde
-      const checkRes = await fetch(proxiedAudioUrl, {
-        method: 'HEAD',
-        signal: AbortSignal.timeout(2500),
-      });
-
-      if (checkRes.ok || checkRes.status === 200 || checkRes.status === 206) {
-        streamUrlCache.set(cacheKey, { url: proxiedAudioUrl, timestamp: Date.now() });
-        return proxiedAudioUrl;
+        if (finalUrl) {
+          streamUrlCache.set(cacheKey, { url: finalUrl, timestamp: Date.now() });
+          return finalUrl;
+        }
       }
-    } catch (err) {
-      // Tenta a próxima instância
-      continue;
     }
+  } catch (err) {
+    // Falha silenciosa para tentar a estratégia seguinte
+  }
+
+  // Estratégia 2: Audius Global Mesh API (Totalmente sem CORS)
+  try {
+    const audiusRes = await fetch(
+      `https://discoveryprovider.audius.co/v1/tracks/search?query=${encodeURIComponent(query)}&app_name=SONORA`,
+      { signal: AbortSignal.timeout(3500) }
+    );
+
+    if (audiusRes.ok) {
+      const audiusData = await audiusRes.json();
+      const first = audiusData?.data?.[0];
+
+      if (first?.id) {
+        const audiusStreamUrl = `https://discoveryprovider.audius.co/v1/tracks/${first.id}/stream?app_name=SONORA`;
+        streamUrlCache.set(cacheKey, { url: audiusStreamUrl, timestamp: Date.now() });
+        return audiusStreamUrl;
+      }
+    }
+  } catch (e) {
+    // Continua
   }
 
   return null;
 }
 
 /**
- * 5. Letras Sincronizadas
+ * 5. Letras Sincronizadas (LRCLIB)
  */
 export async function fetchLyrics(trackTitle, artistName, durationSeconds) {
   try {

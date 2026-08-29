@@ -1,35 +1,42 @@
-const CACHE = "sonora-v1";
-const PRECACHE = ["/", "/index.html", "/manifest.json", "/icon.svg"];
+/**
+ * Sonora Service Worker
+ * Cache apenas de assets estáticos locais; ignora requisições de áudio e APIs externas
+ */
 
-self.addEventListener("install", (e) => {
-  e.waitUntil(
-    caches.open(CACHE).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()).catch(() => {})
-  );
+const CACHE_NAME = 'sonora-static-v1';
+
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
 });
 
-self.addEventListener("activate", (e) => {
-  e.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
-      .then(() => self.clients.claim())
-  );
-});
-
-self.addEventListener("fetch", (e) => {
-  const req = e.request;
-  if (req.method !== "GET") return;
-  e.respondWith(
-    caches.match(req).then((cached) => {
-      const network = fetch(req)
-        .then((res) => {
-          if (res && res.status === 200 && res.type === "basic") {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(req, copy));
-          }
-          return res;
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(
+        keys.map((key) => {
+          if (key !== CACHE_NAME) return caches.delete(key);
         })
-        .catch(() => cached);
-      return cached || network;
-    })
+      )
+    )
+  );
+  self.clients.claim();
+});
+
+self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+
+  // Ignorar completamente chamadas de áudio, APIs externas e proxies de streaming
+  if (
+    url.hostname !== self.location.hostname ||
+    event.request.destination === 'audio' ||
+    url.pathname.includes('/api/') ||
+    event.request.method !== 'GET'
+  ) {
+    return;
+  }
+
+  // Deixa o browser tratar nativamente
+  event.respondWith(
+    fetch(event.request).catch(() => caches.match(event.request))
   );
 });

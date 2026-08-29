@@ -1,331 +1,261 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from "react";
-import { base44 } from "@/api/base44Client";
-import { useAuth } from "@/lib/AuthContext";
-import { getRecommendations, getArtistShuffleQueue, smartShuffle } from "@/lib/recommendations";
+import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
+import { resolveAudioStreamUrl } from '@/api/musicCatalog';
 
 const PlayerContext = createContext(null);
 
-// Equal-power fade: volume follows a sine/cosine curve instead of a straight
-// line, so perceived loudness (which is roughly proportional to power, i.e.
-// volume²) changes at a constant rate. A linear fade dips noticeably in the
-// middle because ear-perceived loudness isn't linear with amplitude — this
-// keeps DJ-mode transitions sounding smooth instead of momentarily quiet.
-function fadeAudio(audio, to, duration) {
-  if (!audio) return;
-  const start = performance.now();
-  const fromVol = audio.volume;
-  const step = (now) => {
-    if (!audio) return;
-    const t = Math.min(1, (now - start) / duration);
-    const curve = Math.sin(t * (Math.PI / 2)); // 0 -> 1 ease matching equal-power taper
-    audio.volume = fromVol + (to - fromVol) * curve;
-    if (t < 1) requestAnimationFrame(step);
-  };
-  requestAnimationFrame(step);
-}
-
 export function PlayerProvider({ children }) {
-  const { user } = useAuth();
-  const [queue, setQueue] = useState([]);
-  const [currentIndex, setCurrentIndex] = useState(-1);
+  const [currentTrack, setCurrentTrack] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [queue, setQueue] = useState([]);
+  const [queueIndex, setQueueIndex] = useState(-1);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(0.7);
-  const [shuffle, setShuffle] = useState(false);
-  const [repeat, setRepeat] = useState("off");
-  const [isLoadingRadio, setIsLoadingRadio] = useState(false);
-  const [showNowPlaying, setShowNowPlaying] = useState(false);
-  const [upNext, setUpNext] = useState([]);
-  const [djMode, setDjMode] = useState(false);
+  const [volume, setVolume] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isShuffle, setIsShuffle] = useState(false);
+  const [isRepeat, setIsRepeat] = useState(false);
+  const [isLoadingStream, setIsLoadingStream] = useState(false);
 
-  const audioRef = useRef(null);
-  const endedRef = useRef(null);
-  const djModeRef = useRef(false);
-  const volumeRef = useRef(0.7);
-  const fadingRef = useRef(false);
-  const activityIdRef = useRef(null);
+  // Referência principal do elemento HTMLAudioElement
+  const audioRef = useRef(new Audio());
+  // Preloader de áudio secundário para pre-fetching da faixa seguinte
+  const preloadAudioRef = useRef(new Audio());
+  // Guarda a promise ou token de cancelamento do stream em resolução
+  const resolveTokenRef = useRef(0);
 
-  djModeRef.current = djMode;
-  volumeRef.current = volume;
-
-  const currentSong = currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex] : null;
-
-  // init audio element
-  useEffect(() => {
-    const audio = new Audio();
-    audio.preload = "auto";
-    audio.volume = volume;
-    audioRef.current = audio;
-
-    const onTime = () => setCurrentTime(audio.currentTime);
-    const onDur = () => setDuration(audio.duration || 0);
-    const onEnd = () => endedRef.current && endedRef.current();
-    const onPlay = () => {
-      setIsPlaying(true);
-      if (djModeRef.current) {
-        audio.volume = 0;
-        fadeAudio(audio, volumeRef.current, 2500);
-      }
-      if (activityIdRef.current) base44.entities.FriendActivity.update(activityIdRef.current, { is_playing: true }).catch(() => {});
-    };
-    const onPause = () => {
-      setIsPlaying(false);
-      if (activityIdRef.current) base44.entities.FriendActivity.update(activityIdRef.current, { is_playing: false }).catch(() => {});
-    };
-    audio.addEventListener("timeupdate", onTime);
-    audio.addEventListener("loadedmetadata", onDur);
-    audio.addEventListener("ended", onEnd);
-    audio.addEventListener("play", onPlay);
-    audio.addEventListener("pause", onPause);
-    return () => {
-      audio.pause();
-      audio.removeEventListener("timeupdate", onTime);
-      audio.removeEventListener("loadedmetadata", onDur);
-      audio.removeEventListener("ended", onEnd);
-      audio.removeEventListener("play", onPlay);
-      audio.removeEventListener("pause", onPause);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // load src when current song changes
+  // Inicialização e listeners de eventos do áudio
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio || !currentSong) return;
-    fadingRef.current = false;
-    if (currentSong.audio_url) {
-      if (djModeRef.current) audio.volume = 0;
-      audio.src = currentSong.audio_url;
-      audio.play().catch(() => {});
-    }
-    if (currentSong.id) {
-      base44.entities.ListeningHistory.create({
-        song_id: currentSong.id,
-        song_title: currentSong.title,
-        artist_name: currentSong.artist_name,
-        cover_url: currentSong.cover_url,
-        played_at: new Date().toISOString(),
-      }).catch(() => {});
-      if (user && user.share_activity !== false) {
-        base44.entities.FriendActivity.create({
-          song_id: currentSong.id,
-          song_title: currentSong.title,
-          artist_name: currentSong.artist_name,
-          cover_url: currentSong.cover_url,
-          is_playing: true,
-        }).then((r) => {
-          activityIdRef.current = r?.id || null;
-          base44.entities.FriendActivity.filter({ created_by_id: user.id }, "-created_date", 30)
-            .then((mine) => {
-              if (mine.length > 20) {
-                base44.entities.FriendActivity.deleteMany({ id: { $in: mine.slice(20).map((m) => m.id) } }).catch(() => {});
-              }
-            }).catch(() => {});
-        }).catch(() => {});
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSong?.id]);
 
-  useEffect(() => {
-    if (audioRef.current) audioRef.current.volume = volume;
-  }, [volume]);
+    const onTimeUpdate = () => setCurrentTime(audio.currentTime);
+    const onLoadedMetadata = () => setDuration(audio.duration || 0);
+    const onEnded = () => handleNext();
+    const onWaiting = () => setIsLoadingStream(true);
+    const onCanPlay = () => setIsLoadingStream(false);
+    const onError = (e) => {
+      console.warn('Erro na reprodução de áudio:', e);
+      setIsLoadingStream(false);
+    };
 
-  // DJ mode: fade out near the end of the track
-  useEffect(() => {
-    if (!djMode || !duration || !isPlaying) return;
-    const remaining = duration - currentTime;
-    if (remaining > 0 && remaining < 4 && !fadingRef.current) {
-      fadingRef.current = true;
-      const audio = audioRef.current;
-      if (audio) fadeAudio(audio, 0, Math.max(800, remaining * 1000));
-    }
-  }, [currentTime, duration, djMode, isPlaying]);
+    audio.addEventListener('timeupdate', onTimeUpdate);
+    audio.addEventListener('loadedmetadata', onLoadedMetadata);
+    audio.addEventListener('ended', onEnded);
+    audio.addEventListener('waiting', onWaiting);
+    audio.addEventListener('canplay', onCanPlay);
+    audio.addEventListener('error', onError);
 
-  // restore volume when DJ mode is turned off
-  useEffect(() => {
-    if (!djMode && audioRef.current) {
-      fadingRef.current = false;
-      audioRef.current.volume = volume;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [djMode]);
+    return () => {
+      audio.removeEventListener('timeupdate', onTimeUpdate);
+      audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+      audio.removeEventListener('ended', onEnded);
+      audio.removeEventListener('waiting', onWaiting);
+      audio.removeEventListener('canplay', onCanPlay);
+      audio.removeEventListener('error', onError);
+    };
+  }, []);
 
-  const handleEnded = useCallback(() => {
-    setCurrentIndex((idx) => {
-      if (repeat === "one") {
-        const audio = audioRef.current;
-        if (audio) {
-          audio.currentTime = 0;
-          audio.play().catch(() => {});
-        }
-        return idx;
-      }
-      if (upNext.length > 0) {
-        const [nextUp, ...rest] = upNext;
-        setUpNext(rest);
-        setQueue((q) => {
-          const newQ = [...q];
-          newQ.splice(idx + 1, 0, nextUp);
-          return newQ;
-        });
-        return idx + 1;
-      }
-      if (idx + 1 < queue.length) return idx + 1;
-      if (repeat === "all" && queue.length > 0) return 0;
-      extendWithRadio();
-      return idx;
-    });
-  }, [repeat, upNext, queue.length]);
-  endedRef.current = handleEnded;
+  // Pre-fetch inteligente da próxima música da fila para eliminar tempos de espera
+  const prefetchNextTrack = useCallback(async (nextIndex, currentQueue) => {
+    if (!currentQueue || nextIndex < 0 || nextIndex >= currentQueue.length) return;
+    const nextTrack = currentQueue[nextIndex];
+    if (!nextTrack || nextTrack.audio_url) return;
 
-  const extendWithRadio = useCallback(async () => {
-    if (!currentSong || isLoadingRadio) return;
-    setIsLoadingRadio(true);
     try {
-      const recs = await getRecommendations({ seed_type: "song", seed_id: currentSong.id, exclude_ids: queue.map((s) => s.id), limit: 25 });
-      if (recs.length) {
-        setQueue((q) => [...q, ...recs]);
-        setCurrentIndex((idx) => idx + 1);
+      const fullUrl = await resolveAudioStreamUrl(nextTrack.title, nextTrack.artist_name);
+      if (fullUrl) {
+        // Guarda em memória no próprio objeto da fila para uso imediato
+        nextTrack.audio_url = fullUrl;
+        preloadAudioRef.current.src = fullUrl;
+        preloadAudioRef.current.preload = 'auto';
       }
     } catch (e) {
-      // ignore
-    } finally {
-      setIsLoadingRadio(false);
+      // Falha silenciosa no prefetch
     }
-  }, [currentSong, queue, isLoadingRadio]);
-
-  const pause = useCallback(() => {
-    const audio = audioRef.current;
-    if (audio) audio.pause();
   }, []);
 
-  const playSong = useCallback((song, newQueue = null, index = 0) => {
-    const q = newQueue || [song];
-    setQueue(q);
-    setCurrentIndex(index);
-    setUpNext([]);
+  // Tocar uma faixa específica com troca imediata de áudio
+  const playTrack = useCallback(async (track, newQueue = null, index = 0) => {
+    if (!track) return;
+
+    const currentToken = ++resolveTokenRef.current;
+    setCurrentTrack(track);
     setIsPlaying(true);
-    window.dispatchEvent(new Event("music:play-song"));
-  }, []);
+    setCurrentTime(0);
 
-  const playQueue = useCallback((songs, startIndex = 0) => {
-    if (!songs.length) return;
-    setQueue(songs);
-    setCurrentIndex(startIndex);
-    setUpNext([]);
-    setIsPlaying(true);
-    window.dispatchEvent(new Event("music:play-song"));
-  }, []);
+    if (newQueue) {
+      setQueue(newQueue);
+      setQueueIndex(index);
+      prefetchNextTrack(index + 1, newQueue);
+    }
 
-  const togglePlay = useCallback(() => {
     const audio = audioRef.current;
-    if (!audio || !currentSong) return;
-    if (audio.paused) audio.play().catch(() => {});
-    else audio.pause();
-  }, [currentSong]);
+    audio.pause();
 
-  const next = useCallback(() => {
-    setCurrentIndex((idx) => {
-      if (upNext.length > 0) {
-        const [nextUp, ...rest] = upNext;
-        setUpNext(rest);
-        setQueue((q) => {
-          const newQ = [...q];
-          newQ.splice(idx + 1, 0, nextUp);
-          return newQ;
-        });
-        return idx + 1;
-      }
-      if (idx + 1 < queue.length) return idx + 1;
-      if (repeat === "all" && queue.length > 0) return 0;
-      return idx;
-    });
-  }, [upNext, queue.length, repeat]);
-
-  const prev = useCallback(() => {
-    const audio = audioRef.current;
-    if (audio && audio.currentTime > 3) {
-      audio.currentTime = 0;
+    // 1. Se for uma estação de Rádio / Podcast / Faixa com áudio direto
+    if (track.audio_url && !track.audio_url.includes('itunes.apple.com')) {
+      audio.src = track.audio_url;
+      audio.play().catch((e) => console.warn('Erro no play:', e));
       return;
     }
-    setCurrentIndex((idx) => (idx > 0 ? idx - 1 : idx));
-  }, []);
 
-  const seek = useCallback((time) => {
-    const audio = audioRef.current;
-    if (audio) audio.currentTime = time;
-  }, []);
-
-  const addToQueue = useCallback((song) => setUpNext((u) => [...u, song]), []);
-  const playNext = useCallback((song) => setUpNext((u) => [song, ...u]), []);
-
-  const toggleShuffle = useCallback(() => {
-    setShuffle((sh) => {
-      const nextSh = !sh;
-      if (nextSh && queue.length > 1) {
-        const current = queue[currentIndex];
-        const remaining = smartShuffle(queue.filter((_, i) => i !== currentIndex));
-        setQueue([current, ...remaining]);
-        setCurrentIndex(0);
-      }
-      return nextSh;
-    });
-  }, [queue, currentIndex]);
-
-  const cycleRepeat = useCallback(() => {
-    setRepeat((r) => (r === "off" ? "all" : r === "all" ? "one" : "off"));
-  }, []);
-
-  const toggleDjMode = useCallback(() => setDjMode((d) => !d), []);
-
-  const showAirplayPicker = useCallback(() => {
-    const audio = audioRef.current;
-    if (audio && typeof audio.webkitShowPlaybackTargetPicker === "function") {
-      audio.webkitShowPlaybackTargetPicker();
+    // 2. Tocar instantaneamente o preview (se disponível) para latência < 100ms
+    if (track.preview_url) {
+      audio.src = track.preview_url;
+      audio.play().catch((e) => console.warn('Erro ao tocar preview:', e));
+    } else {
+      setIsLoadingStream(true);
     }
-  }, []);
 
-  const playArtistShuffle = useCallback(async (artistId) => {
+    // 3. Resolver a stream de áudio completa em background
     try {
-      const queue = await getArtistShuffleQueue(artistId);
-      if (queue.length) {
-        playQueue(queue, 0);
-        setShuffle(true);
+      const fullAudioUrl = await resolveAudioStreamUrl(track.title, track.artist_name);
+
+      // Garante que o utilizador não mudou de faixa entretanto
+      if (currentToken === resolveTokenRef.current && fullAudioUrl) {
+        const resumeTime = audio.currentTime || 0;
+        const wasPlaying = !audio.paused;
+
+        audio.src = fullAudioUrl;
+        track.audio_url = fullAudioUrl;
+
+        // Se estava a tocar o preview, retoma a partir do mesmo segundo
+        if (resumeTime > 0 && resumeTime < 28) {
+          audio.currentTime = resumeTime;
+        }
+
+        if (wasPlaying) {
+          audio.play().catch((e) => console.warn('Erro ao retomar stream full:', e));
+        }
+        setIsLoadingStream(false);
       }
-    } catch (e) {
-      // ignore
+    } catch (err) {
+      console.error('Falha ao resolver stream completa da faixa:', err);
+      setIsLoadingStream(false);
     }
-  }, [playQueue]);
+  }, [prefetchNextTrack]);
 
-  const startRadio = useCallback(async (song) => {
-    setIsLoadingRadio(true);
-    try {
-      const recs = await getRecommendations({ seed_type: "song", seed_id: song.id, limit: 50 });
-      const station = [song, ...recs];
-      playQueue(station, 0);
-    } catch (e) {
-      playQueue([song], 0);
-    } finally {
-      setIsLoadingRadio(false);
+  // Alternar Play / Pause
+  const togglePlay = useCallback(() => {
+    const audio = audioRef.current;
+    if (!currentTrack) return;
+
+    if (isPlaying) {
+      audio.pause();
+      setIsPlaying(false);
+    } else {
+      audio.play().then(() => setIsPlaying(true)).catch((e) => console.warn('Erro play:', e));
     }
-  }, [playQueue]);
+  }, [currentTrack, isPlaying]);
 
-  const value = {
-    queue, currentIndex, currentSong, isPlaying, currentTime, duration,
-    volume, shuffle, repeat, isLoadingRadio, showNowPlaying, upNext, djMode,
-    setVolume, setShuffle, setShowNowPlaying, toggleDjMode,
-    playSong, playQueue, togglePlay, pause, next, prev, seek,
-    addToQueue, playNext, toggleShuffle, cycleRepeat,
-    playArtistShuffle, startRadio, extendWithRadio, showAirplayPicker,
-  };
+  // Avançar para a próxima música
+  const handleNext = useCallback(() => {
+    if (queue.length === 0) return;
 
-  return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;
+    if (isRepeat) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play();
+      return;
+    }
+
+    let nextIdx = queueIndex + 1;
+    if (isShuffle) {
+      nextIdx = Math.floor(Math.random() * queue.length);
+    }
+
+    if (nextIdx < queue.length) {
+      setQueueIndex(nextIdx);
+      playTrack(queue[nextIdx]);
+      prefetchNextTrack(nextIdx + 1, queue);
+    } else {
+      setIsPlaying(false);
+    }
+  }, [queue, queueIndex, isRepeat, isShuffle, playTrack, prefetchNextTrack]);
+
+  // Voltar para a música anterior
+  const handlePrevious = useCallback(() => {
+    if (audioRef.current.currentTime > 3) {
+      audioRef.current.currentTime = 0;
+      return;
+    }
+
+    if (queueIndex > 0) {
+      const prevIdx = queueIndex - 1;
+      setQueueIndex(prevIdx);
+      playTrack(queue[prevIdx]);
+    } else {
+      audioRef.current.currentTime = 0;
+    }
+  }, [queueIndex, queue, playTrack]);
+
+  // Controlo de posição (Seekbar)
+  const seekTo = useCallback((seconds) => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = seconds;
+      setCurrentTime(seconds);
+    }
+  }, []);
+
+  // Controlo de Volume
+  const changeVolume = useCallback((val) => {
+    const newVol = Math.max(0, Math.min(1, val));
+    setVolume(newVol);
+    if (audioRef.current) {
+      audioRef.current.volume = newVol;
+    }
+    if (newVol > 0 && isMuted) {
+      setIsMuted(false);
+    }
+  }, [isMuted]);
+
+  // Mutar / Desmutar
+  const toggleMute = useCallback(() => {
+    if (isMuted) {
+      audioRef.current.volume = volume;
+      setIsMuted(false);
+    } else {
+      audioRef.current.volume = 0;
+      setIsMuted(true);
+    }
+  }, [isMuted, volume]);
+
+  const toggleShuffle = useCallback(() => setIsShuffle((prev) => !prev), []);
+  const toggleRepeat = useCallback(() => setIsRepeat((prev) => !prev), []);
+
+  return (
+    <PlayerContext.Provider
+      value={{
+        currentTrack,
+        isPlaying,
+        isLoadingStream,
+        currentTime,
+        duration,
+        volume,
+        isMuted,
+        isShuffle,
+        isRepeat,
+        queue,
+        queueIndex,
+        playTrack,
+        togglePlay,
+        handleNext,
+        handlePrevious,
+        seekTo,
+        changeVolume,
+        toggleMute,
+        toggleShuffle,
+        toggleRepeat,
+        setQueue
+      }}
+    >
+      {children}
+    </PlayerContext.Provider>
+  );
 }
 
 export function usePlayer() {
-  const ctx = useContext(PlayerContext);
-  if (!ctx) throw new Error("usePlayer must be used within PlayerProvider");
-  return ctx;
+  const context = useContext(PlayerContext);
+  if (!context) {
+    throw new Error('usePlayer tem de ser usado dentro de um PlayerProvider');
+  }
+  return context;
 }

@@ -16,24 +16,29 @@ export function PlayerProvider({ children }) {
   const [isRepeat, setIsRepeat] = useState(false);
   const [isLoadingStream, setIsLoadingStream] = useState(false);
 
-  // Referência principal do elemento HTMLAudioElement
+  // Elemento nativo de áudio
   const audioRef = useRef(new Audio());
-  // Preloader de áudio secundário para pre-fetching da faixa seguinte
-  const preloadAudioRef = useRef(new Audio());
-  // Guarda a promise ou token de cancelamento do stream em resolução
   const resolveTokenRef = useRef(0);
 
-  // Inicialização e listeners de eventos do áudio
+  // Listeners de áudio
   useEffect(() => {
     const audio = audioRef.current;
 
     const onTimeUpdate = () => setCurrentTime(audio.currentTime);
-    const onLoadedMetadata = () => setDuration(audio.duration || 0);
+    const onLoadedMetadata = () => {
+      if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
+        setDuration(audio.duration);
+      }
+    };
     const onEnded = () => handleNext();
     const onWaiting = () => setIsLoadingStream(true);
-    const onCanPlay = () => setIsLoadingStream(false);
+    const onPlaying = () => {
+      setIsLoadingStream(false);
+      setIsPlaying(true);
+    };
+    const onPause = () => setIsPlaying(false);
     const onError = (e) => {
-      console.warn('Erro na reprodução de áudio:', e);
+      console.warn('Aviso no stream de áudio:', e);
       setIsLoadingStream(false);
     };
 
@@ -41,7 +46,8 @@ export function PlayerProvider({ children }) {
     audio.addEventListener('loadedmetadata', onLoadedMetadata);
     audio.addEventListener('ended', onEnded);
     audio.addEventListener('waiting', onWaiting);
-    audio.addEventListener('canplay', onCanPlay);
+    audio.addEventListener('playing', onPlaying);
+    audio.addEventListener('pause', onPause);
     audio.addEventListener('error', onError);
 
     return () => {
@@ -49,92 +55,72 @@ export function PlayerProvider({ children }) {
       audio.removeEventListener('loadedmetadata', onLoadedMetadata);
       audio.removeEventListener('ended', onEnded);
       audio.removeEventListener('waiting', onWaiting);
-      audio.removeEventListener('canplay', onCanPlay);
+      audio.removeEventListener('playing', onPlaying);
+      audio.removeEventListener('pause', onPause);
       audio.removeEventListener('error', onError);
     };
   }, []);
 
-  // Pre-fetch inteligente da próxima música da fila para eliminar tempos de espera
-  const prefetchNextTrack = useCallback(async (nextIndex, currentQueue) => {
-    if (!currentQueue || nextIndex < 0 || nextIndex >= currentQueue.length) return;
-    const nextTrack = currentQueue[nextIndex];
-    if (!nextTrack || nextTrack.audio_url) return;
-
-    try {
-      const fullUrl = await resolveAudioStreamUrl(nextTrack.title, nextTrack.artist_name);
-      if (fullUrl) {
-        // Guarda em memória no próprio objeto da fila para uso imediato
-        nextTrack.audio_url = fullUrl;
-        preloadAudioRef.current.src = fullUrl;
-        preloadAudioRef.current.preload = 'auto';
-      }
-    } catch (e) {
-      // Falha silenciosa no prefetch
-    }
-  }, []);
-
-  // Tocar uma faixa específica com troca imediata de áudio
+  // Tocar uma música do início (0:00)
   const playTrack = useCallback(async (track, newQueue = null, index = 0) => {
     if (!track) return;
 
     const currentToken = ++resolveTokenRef.current;
-    setCurrentTrack(track);
+    
+    // Normalizar objeto da música para garantir compatibilidade total com PlayerBar
+    const normalizedTrack = {
+      ...track,
+      id: track.id || String(Date.now()),
+      title: track.title || track.name || 'Música Desconhecida',
+      artist_name: track.artist_name || track.artist || 'Artista Desconhecido',
+      cover_url: track.cover_url || track.artwork || track.cover || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800',
+      duration_seconds: track.duration_seconds || track.duration || 180,
+    };
+
+    setCurrentTrack(normalizedTrack);
     setIsPlaying(true);
     setCurrentTime(0);
+    setDuration(normalizedTrack.duration_seconds);
 
     if (newQueue) {
       setQueue(newQueue);
       setQueueIndex(index);
-      prefetchNextTrack(index + 1, newQueue);
     }
 
     const audio = audioRef.current;
     audio.pause();
+    audio.currentTime = 0;
 
-    // 1. Se for uma estação de Rádio / Podcast / Faixa com áudio direto
-    if (track.audio_url && !track.audio_url.includes('itunes.apple.com')) {
-      audio.src = track.audio_url;
-      audio.play().catch((e) => console.warn('Erro no play:', e));
+    // 1. Áudio direto (Rádio, Podcast ou ficheiro já resolvido)
+    if (normalizedTrack.audio_url && !normalizedTrack.audio_url.includes('itunes.apple.com')) {
+      audio.src = normalizedTrack.audio_url;
+      audio.play().catch(console.warn);
       return;
     }
 
-    // 2. Tocar instantaneamente o preview (se disponível) para latência < 100ms
-    if (track.preview_url) {
-      audio.src = track.preview_url;
-      audio.play().catch((e) => console.warn('Erro ao tocar preview:', e));
-    } else {
-      setIsLoadingStream(true);
-    }
+    // 2. Tocar preview ou aguardar stream full
+    setIsLoadingStream(true);
 
-    // 3. Resolver a stream de áudio completa em background
     try {
-      const fullAudioUrl = await resolveAudioStreamUrl(track.title, track.artist_name);
+      const fullUrl = await resolveAudioStreamUrl(normalizedTrack.title, normalizedTrack.artist_name);
 
-      // Garante que o utilizador não mudou de faixa entretanto
-      if (currentToken === resolveTokenRef.current && fullAudioUrl) {
-        const resumeTime = audio.currentTime || 0;
-        const wasPlaying = !audio.paused;
-
-        audio.src = fullAudioUrl;
-        track.audio_url = fullAudioUrl;
-
-        // Se estava a tocar o preview, retoma a partir do mesmo segundo
-        if (resumeTime > 0 && resumeTime < 28) {
-          audio.currentTime = resumeTime;
-        }
-
-        if (wasPlaying) {
-          audio.play().catch((e) => console.warn('Erro ao retomar stream full:', e));
+      if (currentToken === resolveTokenRef.current) {
+        if (fullUrl) {
+          audio.src = fullUrl;
+          normalizedTrack.audio_url = fullUrl;
+          audio.currentTime = 0;
+          await audio.play();
+        } else {
+          console.error("Não foi possível encontrar a stream completa nos nós ativos.");
         }
         setIsLoadingStream(false);
       }
     } catch (err) {
-      console.error('Falha ao resolver stream completa da faixa:', err);
+      console.error('Falha ao iniciar reprodução:', err);
       setIsLoadingStream(false);
     }
-  }, [prefetchNextTrack]);
+  }, []);
 
-  // Alternar Play / Pause
   const togglePlay = useCallback(() => {
     const audio = audioRef.current;
     if (!currentTrack) return;
@@ -143,11 +129,10 @@ export function PlayerProvider({ children }) {
       audio.pause();
       setIsPlaying(false);
     } else {
-      audio.play().then(() => setIsPlaying(true)).catch((e) => console.warn('Erro play:', e));
+      audio.play().then(() => setIsPlaying(true)).catch(console.warn);
     }
   }, [currentTrack, isPlaying]);
 
-  // Avançar para a próxima música
   const handleNext = useCallback(() => {
     if (queue.length === 0) return;
 
@@ -164,14 +149,12 @@ export function PlayerProvider({ children }) {
 
     if (nextIdx < queue.length) {
       setQueueIndex(nextIdx);
-      playTrack(queue[nextIdx]);
-      prefetchNextTrack(nextIdx + 1, queue);
+      playTrack(queue[nextIdx], queue, nextIdx);
     } else {
       setIsPlaying(false);
     }
-  }, [queue, queueIndex, isRepeat, isShuffle, playTrack, prefetchNextTrack]);
+  }, [queue, queueIndex, isRepeat, isShuffle, playTrack]);
 
-  // Voltar para a música anterior
   const handlePrevious = useCallback(() => {
     if (audioRef.current.currentTime > 3) {
       audioRef.current.currentTime = 0;
@@ -181,13 +164,12 @@ export function PlayerProvider({ children }) {
     if (queueIndex > 0) {
       const prevIdx = queueIndex - 1;
       setQueueIndex(prevIdx);
-      playTrack(queue[prevIdx]);
+      playTrack(queue[prevIdx], queue, prevIdx);
     } else {
       audioRef.current.currentTime = 0;
     }
   }, [queueIndex, queue, playTrack]);
 
-  // Controlo de posição (Seekbar)
   const seekTo = useCallback((seconds) => {
     if (audioRef.current) {
       audioRef.current.currentTime = seconds;
@@ -195,19 +177,13 @@ export function PlayerProvider({ children }) {
     }
   }, []);
 
-  // Controlo de Volume
   const changeVolume = useCallback((val) => {
     const newVol = Math.max(0, Math.min(1, val));
     setVolume(newVol);
-    if (audioRef.current) {
-      audioRef.current.volume = newVol;
-    }
-    if (newVol > 0 && isMuted) {
-      setIsMuted(false);
-    }
+    if (audioRef.current) audioRef.current.volume = newVol;
+    if (newVol > 0 && isMuted) setIsMuted(false);
   }, [isMuted]);
 
-  // Mutar / Desmutar
   const toggleMute = useCallback(() => {
     if (isMuted) {
       audioRef.current.volume = volume;
@@ -223,6 +199,7 @@ export function PlayerProvider({ children }) {
 
   return (
     <PlayerContext.Provider
+      // @ts-ignore
       value={{
         currentTrack,
         isPlaying,

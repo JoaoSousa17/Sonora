@@ -1,218 +1,206 @@
-import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
-import { Search as SearchIcon, X, Clock } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import MediaCard from "@/components/MediaCard";
-import SongRow from "@/components/SongRow";
-import { usePlayer } from "@/lib/PlayerContext";
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Search as SearchIcon, Music, Disc, Mic2, X, Loader2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { searchSongs, searchAlbums } from '@/api/musicCatalog';
+import { usePlayer } from '@/lib/PlayerContext';
+import SongRow from '@/components/SongRow';
+import MediaCard from '@/components/MediaCard';
 
-const RECENT_KEY = "music:recent-searches";
+export default function SearchPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialQuery = searchParams.get('q') || '';
+  
+  const [searchTerm, setSearchTerm] = useState(initialQuery);
+  const [songs, setSongs] = useState([]);
+  const [albums, setAlbums] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('all');
 
-const browseCategories = [
-  { title: "Artistas", to: "/library/artistas", image: "https://media.base44.com/images/public/6a8c4ea3002847a8f3279fcb/efa6bcb9d_generated_image.png" },
-  { title: "Álbuns", to: "/library/albuns", image: "https://media.base44.com/images/public/6a8c4ea3002847a8f3279fcb/03593c52f_generated_image.png" },
-  { title: "Favoritos", to: "/library/favoritos", image: "https://media.base44.com/images/public/6a8c4ea3002847a8f3279fcb/df6f1dc4c_generated_image.png" },
-  { title: "Podcasts", to: "/podcasts", image: "https://media.base44.com/images/public/6a8c4ea3002847a8f3279fcb/de719b7c7_generated_image.png" },
-  { title: "Rádio", to: "/radio", image: "https://media.base44.com/images/public/6a8c4ea3002847a8f3279fcb/21122dfe9_generated_image.png" },
-];
+  const { playTrack, currentTrack, isPlaying } = usePlayer();
 
-export default function Search() {
-  const [q, setQ] = useState("");
-  const [results, setResults] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [recent, setRecent] = useState([]);
-  const { playQueue } = usePlayer();
-
+  // Executa a pesquisa com debounce de 350ms para não sobrecarregar
   useEffect(() => {
-    try {
-      setRecent(JSON.parse(localStorage.getItem(RECENT_KEY) || "[]"));
-    } catch {
-      setRecent([]);
-    }
-  }, []);
-
-  const saveRecent = (term) => {
-    const t = term.trim();
-    if (!t) return;
-    const next = [t, ...recent.filter((r) => r.toLowerCase() !== t.toLowerCase())].slice(0, 12);
-    setRecent(next);
-    localStorage.setItem(RECENT_KEY, JSON.stringify(next));
-  };
-
-  const clearRecent = () => {
-    setRecent([]);
-    localStorage.removeItem(RECENT_KEY);
-  };
-
-  useEffect(() => {
-    if (!q.trim()) {
-      setResults(null);
+    if (!searchTerm.trim()) {
+      setSongs([]);
+      setAlbums([]);
+      setIsLoading(false);
       return;
     }
-    const t = setTimeout(async () => {
-      setLoading(true);
-      const [songs, artists, albums, playlists] = await Promise.all([
-        base44.entities.Song.list("-play_count", 50).catch(() => []),
-        base44.entities.Artist.list("-monthly_listeners", 50).catch(() => []),
-        base44.entities.Album.list("-release_year", 50).catch(() => []),
-        base44.entities.Playlist.list("-updated_date", 50).catch(() => []),
-      ]);
-      const ql = q.toLowerCase();
-      setResults({
-        songs: (songs || []).filter((s) => s.title?.toLowerCase().includes(ql) || s.artist_name?.toLowerCase().includes(ql)),
-        artists: (artists || []).filter((a) => a.name?.toLowerCase().includes(ql)),
-        albums: (albums || []).filter((a) => a.title?.toLowerCase().includes(ql) || a.artist_name?.toLowerCase().includes(ql)),
-        playlists: (playlists || []).filter((p) => p.title?.toLowerCase().includes(ql)),
-      });
-      setLoading(false);
-    }, 300);
-    return () => clearTimeout(t);
-  }, [q]);
 
-  const runSearch = (term) => setQ(term);
+    const timer = setTimeout(async () => {
+      setIsLoading(true);
+      try {
+        const [songsRes, albumsRes] = await Promise.all([
+          searchSongs(searchTerm, 30),
+          searchAlbums(searchTerm, 12)
+        ]);
+        setSongs(songsRes || []);
+        setAlbums(albumsRes || []);
+      } catch (err) {
+        console.error('Erro ao efetuar busca:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const handleClear = () => {
+    setSearchTerm('');
+    setSearchParams({});
+    setSongs([]);
+    setAlbums([]);
+  };
+
+  const handleSearchChange = (e) => {
+    const val = e.target.value;
+    setSearchTerm(val);
+    if (val) {
+      setSearchParams({ q: val });
+    } else {
+      setSearchParams({});
+    }
+  };
 
   return (
-    <div className="pb-10">
-      <div className="px-6 md:px-10 pt-8 pb-6 sticky top-0 bg-background/80 backdrop-blur z-10">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            saveRecent(q);
-          }}
-          className="relative max-w-xl"
-        >
-          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-          <Input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Músicas, artistas, álbuns, playlists"
-            className="pl-11 pr-10 h-12 rounded-full bg-white/5 border-white/10"
-            autoFocus
-          />
-          {q && (
-            <button type="button" onClick={() => setQ("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-              <X className="w-5 h-5" />
-            </button>
+    <div className="flex-1 overflow-y-auto px-6 py-6 pb-32 text-slate-100">
+      {/* Barra de Pesquisa Estilo Apple Music */}
+      <div className="relative max-w-2xl mb-8">
+        <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+        <Input
+          type="text"
+          placeholder="Artistas, músicas, álbuns..."
+          value={searchTerm}
+          onChange={handleSearchChange}
+          className="w-full pl-12 pr-10 py-6 text-lg bg-slate-900/80 border-slate-700/60 rounded-xl focus:border-red-500 focus:ring-red-500 transition-all text-white placeholder:text-slate-500"
+          autoFocus
+        />
+        {searchTerm && (
+          <button
+            onClick={handleClear}
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-white rounded-full transition-colors"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        )}
+      </div>
+
+      {/* Estado de Carregamento */}
+      {isLoading && (
+        <div className="flex items-center justify-center py-20 text-slate-400 gap-3">
+          <Loader2 className="h-6 w-6 animate-spin text-red-500" />
+          <span>A procurar no catálogo...</span>
+        </div>
+      )}
+
+      {/* Vista Sem Termo de Pesquisa */}
+      {!searchTerm.trim() && !isLoading && (
+        <div className="flex flex-col items-center justify-center py-20 text-slate-500">
+          <Music className="h-16 w-16 stroke-[1.2] mb-4 opacity-40" />
+          <p className="text-lg font-medium">Explora milhões de músicas e álbuns</p>
+          <p className="text-sm">Digita o nome de um artista, faixa ou banda para começar.</p>
+        </div>
+      )}
+
+      {/* Resultados da Pesquisa */}
+      {searchTerm.trim() && !isLoading && (
+        <>
+          {songs.length === 0 && albums.length === 0 ? (
+            <div className="text-center py-20 text-slate-400">
+              <p className="text-lg">Nenhum resultado encontrado para "{searchTerm}"</p>
+              <p className="text-sm text-slate-500 mt-1">Verifica a ortografia ou tenta outro termo.</p>
+            </div>
+          ) : (
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="bg-slate-900/60 border border-slate-800 p-1 rounded-xl mb-6">
+                <TabsTrigger value="all" className="data-[state=active]:bg-red-500/20 data-[state=active]:text-red-400 rounded-lg">
+                  Tudo
+                </TabsTrigger>
+                <TabsTrigger value="songs" className="data-[state=active]:bg-red-500/20 data-[state=active]:text-red-400 rounded-lg">
+                  Músicas ({songs.length})
+                </TabsTrigger>
+                <TabsTrigger value="albums" className="data-[state=active]:bg-red-500/20 data-[state=active]:text-red-400 rounded-lg">
+                  Álbuns ({albums.length})
+                </TabsTrigger>
+              </TabsList>
+
+              {/* TAB: TUDO */}
+              <TabsContent value="all" className="space-y-8">
+                {/* Top Songs */}
+                {songs.length > 0 && (
+                  <div>
+                    <h2 className="text-xl font-bold mb-4 text-white">Músicas</h2>
+                    <div className="divide-y divide-slate-800/40">
+                      {songs.slice(0, 5).map((track, idx) => (
+                        <SongRow
+                          key={track.id}
+                          song={track}
+                          index={idx}
+                          isPlaying={isPlaying && currentTrack?.id === track.id}
+                          onPlay={() => playTrack(track, songs, idx)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Top Albums */}
+                {albums.length > 0 && (
+                  <div>
+                    <h2 className="text-xl font-bold mb-4 text-white">Álbuns</h2>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                      {albums.slice(0, 6).map((album) => (
+                        <MediaCard
+                          key={album.id}
+                          item={album}
+                          type="album"
+                          title={album.title}
+                          subtitle={album.artist_name}
+                          imageUrl={album.cover_url}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </TabsContent>
+
+              {/* TAB: MÚSICAS */}
+              <TabsContent value="songs">
+                <div className="divide-y divide-slate-800/40">
+                  {songs.map((track, idx) => (
+                    <SongRow
+                      key={track.id}
+                      song={track}
+                      index={idx}
+                      isPlaying={isPlaying && currentTrack?.id === track.id}
+                      onPlay={() => playTrack(track, songs, idx)}
+                    />
+                  ))}
+                </div>
+              </TabsContent>
+
+              {/* TAB: ÁLBUNS */}
+              <TabsContent value="albums">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                  {albums.map((album) => (
+                    <MediaCard
+                      key={album.id}
+                      item={album}
+                      type="album"
+                      title={album.title}
+                      subtitle={album.artist_name}
+                      imageUrl={album.cover_url}
+                    />
+                  ))}
+                </div>
+              </TabsContent>
+            </Tabs>
           )}
-        </form>
-      </div>
-
-      <div className="px-6 md:px-10">
-        {!results && !loading && (
-          <div className="space-y-8">
-            {recent.length > 0 && (
-              <section>
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-xl font-bold">Pesquisas recentes</h2>
-                  <button onClick={clearRecent} className="text-sm text-muted-foreground hover:text-foreground">
-                    Limpar
-                  </button>
-                </div>
-                {/* running text chips */}
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {recent.map((r) => (
-                    <button
-                      key={r}
-                      onClick={() => runSearch(r)}
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 text-sm transition-colors"
-                    >
-                      <Clock className="w-3.5 h-3.5 text-muted-foreground" />
-                      {r}
-                    </button>
-                  ))}
-                </div>
-                {/* cards */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                  {recent.slice(0, 6).map((r) => (
-                    <button
-                      key={r}
-                      onClick={() => runSearch(r)}
-                      className="flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 text-left transition-colors"
-                    >
-                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary/30 to-primary/10 flex items-center justify-center flex-shrink-0">
-                        <SearchIcon className="w-5 h-5 text-primary" />
-                      </div>
-                      <span className="text-sm font-medium truncate">{r}</span>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            <section>
-              <h2 className="text-xl font-bold mb-3">Explorar</h2>
-              <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-                {browseCategories.map((c, i) => (
-                  <Link
-                    key={c.title}
-                    to={c.to}
-                    className={`relative rounded-2xl h-32 md:h-36 overflow-hidden hover:opacity-95 transition-opacity ${i < 3 ? "md:col-span-2" : "md:col-span-3"}`}
-                  >
-                    <img src={c.image} alt="" className="absolute inset-0 w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/30 to-black/10" />
-                    <span className="relative p-4 h-full flex items-end text-white font-bold text-lg drop-shadow">{c.title}</span>
-                  </Link>
-                ))}
-              </div>
-            </section>
-          </div>
-        )}
-
-        {loading && (
-          <div className="flex justify-center py-20">
-            <div className="w-8 h-8 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
-          </div>
-        )}
-
-        {results && !loading && (
-          <div className="space-y-8">
-            {results.songs.length > 0 && (
-              <section>
-                <h2 className="text-xl font-bold mb-2">Músicas</h2>
-                <div className="space-y-0.5">
-                  {results.songs.slice(0, 8).map((s, i) => (
-                    <SongRow key={s.id} song={s} index={i} queue={results.songs} />
-                  ))}
-                </div>
-              </section>
-            )}
-            {results.artists.length > 0 && (
-              <section>
-                <h2 className="text-xl font-bold mb-2">Artistas</h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-1">
-                  {results.artists.map((a) => (
-                    <MediaCard key={a.id} to={`/artist/${a.id}`} cover_url={a.image_url} title={a.name} subtitle="Artista" rounded />
-                  ))}
-                </div>
-              </section>
-            )}
-            {results.albums.length > 0 && (
-              <section>
-                <h2 className="text-xl font-bold mb-2">Álbuns</h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-1">
-                  {results.albums.map((a) => (
-                    <MediaCard key={a.id} to={`/album/${a.id}`} cover_url={a.cover_url} title={a.title} subtitle={a.artist_name} />
-                  ))}
-                </div>
-              </section>
-            )}
-            {results.playlists.length > 0 && (
-              <section>
-                <h2 className="text-xl font-bold mb-2">Playlists</h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-1">
-                  {results.playlists.map((p) => (
-                    <MediaCard key={p.id} to={`/playlist/${p.id}`} cover_url={p.cover_url} title={p.title} subtitle="Playlist" />
-                  ))}
-                </div>
-              </section>
-            )}
-            {results.songs.length === 0 && results.artists.length === 0 && results.albums.length === 0 && results.playlists.length === 0 && (
-              <p className="text-muted-foreground text-center py-20">Sem resultados para "{q}"</p>
-            )}
-          </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 }

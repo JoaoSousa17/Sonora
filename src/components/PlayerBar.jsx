@@ -1,123 +1,120 @@
-import React, { useState, useEffect } from "react";
-import {
-  Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Repeat1,
-  Volume2, Volume1, VolumeX, ChevronUp, Heart, Mic2, Disc3, Airplay,
-} from "lucide-react";
-import { Link } from "react-router-dom";
-import { usePlayer } from "@/lib/PlayerContext";
-import { base44 } from "@/api/base44Client";
-import { Image } from "@/components/ui/image";
-import { Slider } from "@/components/ui/slider";
-import { toast } from "@/components/ui/use-toast";
+import React from 'react';
+import { usePlayer } from '@/lib/PlayerContext';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Shuffle, Repeat, Mic2, Loader2 } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
 
-function fmt(sec) {
-  if (!sec || isNaN(sec)) return "0:00";
-  const m = Math.floor(sec / 60);
-  const s = Math.floor(sec % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
+function formatTime(seconds) {
+  if (!seconds || isNaN(seconds)) return '0:00';
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
 }
 
 export default function PlayerBar() {
   const {
-    currentSong, isPlaying, togglePlay, next, prev, currentTime, duration,
-    seek, volume, setVolume, shuffle, toggleShuffle, repeat, cycleRepeat,
-    setShowNowPlaying, startRadio, djMode, toggleDjMode, showAirplayPicker,
+    currentTrack,
+    isPlaying,
+    isLoadingStream,
+    currentTime,
+    duration,
+    volume,
+    isMuted,
+    isShuffle,
+    isRepeat,
+    togglePlay,
+    handleNext,
+    handlePrevious,
+    seekTo,
+    changeVolume,
+    toggleMute,
+    toggleShuffle,
+    toggleRepeat
   } = usePlayer();
-  const [loved, setLoved] = useState(false);
 
-  useEffect(() => {
-    if (!currentSong) return setLoved(false);
-    base44.entities.Favorite.filter({ song_id: currentSong.id }, "-added_at", 1)
-      .then((f) => setLoved(f.length > 0))
-      .catch(() => {});
-  }, [currentSong?.id]);
-
-  const toggleLove = async (e) => {
-    e.stopPropagation();
-    if (!currentSong) return;
-    try {
-      if (loved) {
-        await base44.entities.Favorite.deleteMany({ song_id: currentSong.id });
-        setLoved(false);
-      } else {
-        await base44.entities.Favorite.create({
-          song_id: currentSong.id, song_title: currentSong.title, artist_name: currentSong.artist_name,
-          cover_url: currentSong.cover_url, added_at: new Date().toISOString(),
-        });
-        setLoved(true);
-        toast({ title: "Adicionado aos Favoritos" });
-      }
-    } catch (e) {}
-  };
-
-  if (!currentSong) return null;
-
-  const VolIcon = volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
-  const openNowPlaying = () => setShowNowPlaying(true);
-  const stop = (e) => e.stopPropagation();
+  // Se nenhuma música tiver sido clicada ainda, esconde a barra
+  if (!currentTrack) return null;
 
   return (
-    <div onClick={openNowPlaying} className="relative h-16 md:h-20 border-t border-border bg-card/90 backdrop-blur-xl px-3 md:px-6 flex items-center gap-3 md:gap-6 cursor-pointer">
-      {/* Left: song info */}
-      <div className="flex items-center gap-3 w-1/4 min-w-0">
-        <div className="w-12 h-12 md:w-14 md:h-14 rounded-md overflow-hidden flex-shrink-0">
-          {currentSong.cover_url && <Image src={currentSong.cover_url} className="w-full h-full object-cover" fittingType="fill" />}
-        </div>
-        <div className="min-w-0 hidden sm:block">
-          <p className="text-sm font-medium truncate">{currentSong.title}</p>
-          <Link to={`/artist/${currentSong.artist_id}`} onClick={stop} className="text-xs text-muted-foreground hover:underline truncate block">
-            {currentSong.artist_name}
-          </Link>
-        </div>
-        <button onClick={toggleLove} className="hidden md:block ml-2">
-          <Heart className={`w-4 h-4 ${loved ? "fill-primary text-primary" : "text-muted-foreground"}`} />
-        </button>
-      </div>
-
-      {/* Center: controls + progress */}
-      <div className="flex-1 flex flex-col items-center gap-1.5 max-w-2xl mx-auto">
-        <div className="flex items-center gap-4 md:gap-6">
-          <button onClick={(e) => { stop(e); toggleShuffle(); }} className={`hidden sm:block ${shuffle ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}>
-            <Shuffle className="w-4 h-4" />
-          </button>
-          <button onClick={(e) => { stop(e); prev(); }} className="text-foreground hover:text-primary">
-            <SkipBack className="w-5 h-5 fill-current" />
-          </button>
-          <button onClick={(e) => { stop(e); togglePlay(); }} className="w-9 h-9 rounded-full bg-foreground text-background flex items-center justify-center hover:scale-105 transition-transform">
-            {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
-          </button>
-          <button onClick={(e) => { stop(e); next(); }} className="text-foreground hover:text-primary">
-            <SkipForward className="w-5 h-5 fill-current" />
-          </button>
-          <button onClick={(e) => { stop(e); cycleRepeat(); }} className={`hidden sm:block ${repeat !== "off" ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}>
-            {repeat === "one" ? <Repeat1 className="w-4 h-4" /> : <Repeat className="w-4 h-4" />}
-          </button>
-        </div>
-        <div className="hidden md:flex items-center gap-2 w-full" onClick={stop}>
-          <span className="text-xs text-muted-foreground w-10 text-right">{fmt(currentTime)}</span>
-          <Slider value={[currentTime]} max={duration || 100} step={1} onValueChange={(v) => seek(v[0])} className="flex-1" />
-          <span className="text-xs text-muted-foreground w-10">{fmt(duration)}</span>
+    <div className="fixed bottom-0 left-0 right-0 h-24 bg-slate-950/95 backdrop-blur-xl border-t border-slate-800/80 px-4 md:px-8 flex items-center justify-between z-50 shadow-2xl">
+      {/* 1. Informação da Música (Esquerda) */}
+      <div className="flex items-center gap-3.5 w-1/4 min-w-[200px]">
+        <img
+          src={currentTrack.cover_url}
+          alt={currentTrack.title}
+          className="h-14 w-14 rounded-xl object-cover shadow-lg border border-white/5"
+        />
+        <div className="min-w-0 pr-2">
+          <p className="text-sm font-semibold text-white truncate">{currentTrack.title}</p>
+          <p className="text-xs text-slate-400 truncate mt-0.5">{currentTrack.artist_name}</p>
         </div>
       </div>
 
-      {/* Right: volume + expand */}
-      <div className="flex items-center gap-3 md:gap-4 w-auto md:w-1/4 justify-end">
-        <button onClick={(e) => { stop(e); toggleDjMode(); }} className={`hidden lg:block ${djMode ? "text-primary" : "text-muted-foreground hover:text-foreground"}`} title="Modo DJ — transições suaves">
-          <Disc3 className="w-4 h-4" />
-        </button>
-        <button onClick={(e) => { stop(e); startRadio(currentSong); }} className="hidden lg:block text-muted-foreground hover:text-foreground" title="Criar estação">
-          <Mic2 className="w-4 h-4" />
-        </button>
-        <button onClick={(e) => { stop(e); showAirplayPicker(); }} className="hidden md:block text-muted-foreground hover:text-foreground" title="AirPlay">
-          <Airplay className="w-4 h-4" />
-        </button>
-        <div className="hidden lg:flex items-center gap-2" onClick={stop}>
-          <VolIcon className="w-4 h-4 text-muted-foreground" />
-          <Slider value={[volume * 100]} max={100} step={1} onValueChange={(v) => setVolume(v[0] / 100)} className="w-24" />
+      {/* 2. Controlos Centrais + Barra de Progresso */}
+      <div className="flex flex-col items-center gap-2 max-w-xl w-2/4">
+        <div className="flex items-center gap-5">
+          <button
+            onClick={toggleShuffle}
+            className={`p-1 transition-colors ${isShuffle ? 'text-red-500' : 'text-slate-400 hover:text-white'}`}
+          >
+            <Shuffle className="h-4 w-4" />
+          </button>
+
+          <button onClick={handlePrevious} className="text-slate-300 hover:text-white transition-colors">
+            <SkipBack className="h-5 w-5 fill-current" />
+          </button>
+
+          <button
+            onClick={togglePlay}
+            disabled={isLoadingStream}
+            className="h-10 w-10 bg-white hover:scale-105 rounded-full flex items-center justify-center text-slate-950 transition-all shadow-md"
+          >
+            {isLoadingStream ? (
+              <Loader2 className="h-5 w-5 animate-spin text-slate-900" />
+            ) : isPlaying ? (
+              <Pause className="h-5 w-5 fill-current" />
+            ) : (
+              <Play className="h-5 w-5 fill-current ml-0.5" />
+            )}
+          </button>
+
+          <button onClick={handleNext} className="text-slate-300 hover:text-white transition-colors">
+            <SkipForward className="h-5 w-5 fill-current" />
+          </button>
+
+          <button
+            onClick={toggleRepeat}
+            className={`p-1 transition-colors ${isRepeat ? 'text-red-500' : 'text-slate-400 hover:text-white'}`}
+          >
+            <Repeat className="h-4 w-4" />
+          </button>
         </div>
-        <button onClick={(e) => { stop(e); openNowPlaying(); }} className="text-muted-foreground hover:text-foreground">
-          <ChevronUp className="w-5 h-5" />
+
+        {/* Timeline / Scrubbing */}
+        <div className="w-full flex items-center gap-3 text-xs text-slate-400 font-mono">
+          <span className="w-10 text-right">{formatTime(currentTime)}</span>
+          <Slider
+            value={[currentTime]}
+            max={duration || 100}
+            step={1}
+            onValueChange={(vals) => seekTo(vals[0])}
+            className="flex-1 cursor-pointer"
+          />
+          <span className="w-10">{formatTime(duration)}</span>
+        </div>
+      </div>
+
+      {/* 3. Controlo de Volume (Direita) */}
+      <div className="flex items-center justify-end gap-3 w-1/4 min-w-[160px]">
+        <button onClick={toggleMute} className="text-slate-400 hover:text-white transition-colors">
+          {isMuted || volume === 0 ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
         </button>
+        <Slider
+          value={[isMuted ? 0 : volume * 100]}
+          max={100}
+          step={1}
+          onValueChange={(vals) => changeVolume(vals[0] / 100)}
+          className="w-24 cursor-pointer"
+        />
       </div>
     </div>
   );

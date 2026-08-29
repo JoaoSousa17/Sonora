@@ -1,28 +1,26 @@
 /**
- * Sonora - Catálogo Musical & Resolvedor de Streaming
- * Combina iTunes API (Metadados em HD) + Piped/Invidious (Áudio sem custos) + LRCLIB (Letras)
+ * Sonora - Catálogo Musical & Resolvedor de Streaming Completo
+ * Suporte a Proxy de Áudio anti-403 para reprodução completa
  */
 
-// Instâncias públicas de fallback para resolver áudio do YouTube sem CORS
-const PIPED_INSTANCES = [
-  'https://pipedapi.kavin.rocks',
-  'https://api.piped.privacydev.net',
-  'https://watchapi.whatever.social',
-  'https://pipedapi.tokhmi.xyz'
+// Instâncias com proxy de áudio direto e CORS aberto
+const INVIDIOUS_INSTANCES = [
+  'https://invidious.drgns.space',
+  'https://inv.nadeko.net',
+  'https://yt.drgnz.club',
+  'https://invidious.private.coffee',
+  'https://invidious.flokinet.to'
 ];
 
-/**
- * Normaliza o tamanho das capas do iTunes para resolução Ultra HD (1000x1000)
- */
 function upgradeArtwork(url) {
   if (!url) return 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800';
   return url.replace(/100x100bb\.jpg$/, '1000x1000bb.jpg');
 }
 
 /**
- * 1. Pesquisa músicas gerais
+ * 1. Pesquisa Músicas (iTunes API)
  */
-export async function searchSongs(query, limit = 25) {
+export async function searchSongs(query, limit = 30) {
   if (!query || !query.trim()) return [];
 
   try {
@@ -41,9 +39,8 @@ export async function searchSongs(query, limit = 25) {
       duration_seconds: Math.round(track.trackTimeMillis / 1000),
       release_date: track.releaseDate,
       genre: track.primaryGenreName,
-      preview_url: track.previewUrl, // Fallback instantâneo de 30s da Apple
-      audio_url: null, // Resolvido on-demand ao clicar em play
-      isrc: track.isrc || null
+      preview_url: track.previewUrl,
+      audio_url: null,
     }));
   } catch (error) {
     console.error('Erro na pesquisa de faixas:', error);
@@ -70,7 +67,7 @@ export async function searchAlbums(query, limit = 20) {
       cover_url: upgradeArtwork(album.artworkUrl100),
       track_count: album.trackCount,
       release_date: album.releaseDate,
-      genre: album.primaryGenreName
+      genre: album.primaryGenreName,
     }));
   } catch (error) {
     console.error('Erro na pesquisa de álbuns:', error);
@@ -79,7 +76,7 @@ export async function searchAlbums(query, limit = 20) {
 }
 
 /**
- * 3. Obter Detalhes do Álbum com todas as Faixas
+ * 3. Faixas do Álbum
  */
 export async function getAlbumTracks(albumId) {
   try {
@@ -102,7 +99,8 @@ export async function getAlbumTracks(albumId) {
         album_id: String(albumId),
         cover_url: upgradeArtwork(track.artworkUrl100 || (albumInfo && albumInfo.artworkUrl100)),
         duration_seconds: Math.round(track.trackTimeMillis / 1000),
-        preview_url: track.previewUrl
+        preview_url: track.previewUrl,
+        audio_url: null,
       }));
 
     return {
@@ -112,7 +110,7 @@ export async function getAlbumTracks(albumId) {
       cover_url: upgradeArtwork(albumInfo ? albumInfo.artworkUrl100 : ''),
       release_date: albumInfo ? albumInfo.releaseDate : '',
       track_count: tracks.length,
-      tracks
+      tracks,
     };
   } catch (error) {
     console.error('Erro ao carregar faixas do álbum:', error);
@@ -121,52 +119,55 @@ export async function getAlbumTracks(albumId) {
 }
 
 /**
- * 4. Resolvedor de Áudio Completo (Scraping em Tempo Real com Cache em Memória)
+ * 4. Resolvedor de Áudio Completo com Proxy Anti-403
  */
 const streamUrlCache = new Map();
 
 export async function resolveAudioStreamUrl(trackTitle, artistName) {
-  const cacheKey = `${artistName} - ${trackTitle}`.toLowerCase();
-  
+  const cacheKey = `${artistName} - ${trackTitle}`.toLowerCase().trim();
+
+  // Cache em memória
   if (streamUrlCache.has(cacheKey)) {
     const cached = streamUrlCache.get(cacheKey);
-    // Válido por 3 horas
     if (Date.now() - cached.timestamp < 3 * 60 * 60 * 1000) {
       return cached.url;
     }
   }
 
-  const searchQuery = `${artistName} ${trackTitle} Audio`;
+  const cleanTitle = trackTitle.replace(/\(.*?\)|\[.*?\]/g, '').trim();
+  const query = `${cleanTitle} ${artistName} Audio`;
 
-  for (const instance of PIPED_INSTANCES) {
+  for (const instance of INVIDIOUS_INSTANCES) {
     try {
-      const searchRes = await fetch(`${instance}/search?q=${encodeURIComponent(searchQuery)}&filter=music_songs`, {
-        signal: AbortSignal.timeout(2500)
+      // 1. Pesquisa no Invidious
+      const searchRes = await fetch(`${instance}/api/v1/search?q=${encodeURIComponent(query)}&type=video`, {
+        signal: AbortSignal.timeout(3000),
       });
+
       if (!searchRes.ok) continue;
 
       const searchData = await searchRes.json();
-      const firstItem = searchData.items && searchData.items[0];
+      if (!Array.isArray(searchData) || searchData.length === 0) continue;
 
-      if (!firstItem || !firstItem.url) continue;
+      const videoId = searchData[0].videoId;
+      if (!videoId) continue;
 
-      const videoId = firstItem.url.replace('/watch?v=', '');
-      const streamsRes = await fetch(`${instance}/streams/${videoId}`, {
-        signal: AbortSignal.timeout(2500)
+      // 2. Usar o endpoint de proxy direto do Invidious (itag 140 = M4A AAC 128kbps alta qualidade)
+      // Este endpoint faz stream direto do servidor sem dar erro 403 do Google no browser
+      const proxiedAudioUrl = `${instance}/latest_version?id=${videoId}&itag=140`;
+
+      // 3. Testa rapidamente se o stream responde
+      const checkRes = await fetch(proxiedAudioUrl, {
+        method: 'HEAD',
+        signal: AbortSignal.timeout(2500),
       });
-      if (!streamsRes.ok) continue;
 
-      const streamsData = await streamsRes.json();
-      // Escolher o melhor fluxo de áudio puro (m4a ou opus)
-      const audioStreams = streamsData.audioStreams || [];
-      const bestAudio = audioStreams.sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
-
-      if (bestAudio && bestAudio.url) {
-        streamUrlCache.set(cacheKey, { url: bestAudio.url, timestamp: Date.now() });
-        return bestAudio.url;
+      if (checkRes.ok || checkRes.status === 200 || checkRes.status === 206) {
+        streamUrlCache.set(cacheKey, { url: proxiedAudioUrl, timestamp: Date.now() });
+        return proxiedAudioUrl;
       }
-    } catch (e) {
-      // Tenta a próxima instância da lista
+    } catch (err) {
+      // Tenta a próxima instância
       continue;
     }
   }
@@ -175,21 +176,21 @@ export async function resolveAudioStreamUrl(trackTitle, artistName) {
 }
 
 /**
- * 5. Buscar Letras Sincronizadas em Tempo Real (LRCLIB)
+ * 5. Letras Sincronizadas
  */
 export async function fetchLyrics(trackTitle, artistName, durationSeconds) {
   try {
-    const url = `https://lrclib.net/api/get?artist_name=${encodeURIComponent(artistName)}&track_name=${encodeURIComponent(trackTitle)}&duration=${durationSeconds || ''}`;
+    const cleanTitle = trackTitle.replace(/\(.*?\)|\[.*?\]/g, '').trim();
+    const url = `https://lrclib.net/api/get?artist_name=${encodeURIComponent(artistName)}&track_name=${encodeURIComponent(cleanTitle)}&duration=${durationSeconds || ''}`;
     const response = await fetch(url, { signal: AbortSignal.timeout(3000) });
     if (!response.ok) return null;
 
     const data = await response.json();
     return {
-      syncedLyrics: data.syncedLyrics || null, // Formato [00:12.34] Letra
-      plainLyrics: data.plainLyrics || null
+      syncedLyrics: data.syncedLyrics || null,
+      plainLyrics: data.plainLyrics || null,
     };
   } catch (error) {
-    console.warn('Letras não encontradas no LRCLIB:', error);
     return null;
   }
 }
